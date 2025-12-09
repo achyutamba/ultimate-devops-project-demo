@@ -1,141 +1,219 @@
-**Note:** This project is a fork of `opentelemetry-demo`. Thanks to the team and contributors for opensourcing this wonderful demo project. Definitely one of the best on internet.
+**Note:** This project is a fork of `opentelemetry-demo`. Thanks to the OpenTelemetry team and contributors for opensourcing this wonderful demo project.
 
 <!-- markdownlint-disable-next-line -->
-# <img src="https://opentelemetry.io/img/logos/opentelemetry-logo-nav.png" alt="OTel logo" width="45"> OpenTelemetry Demo
+# <img src="https://opentelemetry.io/img/logos/opentelemetry-logo-nav.png" alt="OTel logo" width="45"> OpenTelemetry Demo - Azure Enterprise Edition
 
-[![Slack](https://img.shields.io/badge/slack-@cncf/otel/demo-brightgreen.svg?logo=slack)](https://cloud-native.slack.com/archives/C03B4CWV4DA)
-[![Version](https://img.shields.io/github/v/release/open-telemetry/opentelemetry-demo?color=blueviolet)](https://github.com/open-telemetry/opentelemetry-demo/releases)
-[![Commits](https://img.shields.io/github/commits-since/open-telemetry/opentelemetry-demo/latest?color=ff69b4&include_prereleases)](https://github.com/open-telemetry/opentelemetry-demo/graphs/commit-activity)
-[![Downloads](https://img.shields.io/docker/pulls/otel/demo)](https://hub.docker.com/r/otel/demo)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg?color=red)](https://github.com/open-telemetry/opentelemetry-demo/blob/main/LICENSE)
-[![Integration Tests](https://github.com/open-telemetry/opentelemetry-demo/actions/workflows/run-integration-tests.yml/badge.svg)](https://github.com/open-telemetry/opentelemetry-demo/actions/workflows/run-integration-tests.yml)
-[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/opentelemetry-demo)](https://artifacthub.io/packages/helm/opentelemetry-helm/opentelemetry-demo)
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9247/badge)](https://www.bestpractices.dev/en/projects/9247)
+
+## 🚀 Enterprise-Grade Azure Implementation
+
+This repository extends the OpenTelemetry Astronomy Shop demo with **production-ready Azure infrastructure, SOC 2 compliant CI/CD pipelines, and enterprise security features**.
+
+### ✨ What's New in This Fork
+
+- **☁️ Complete Azure Infrastructure** - Multi-environment Terraform modules (Dev/Staging/Prod)
+- **🔐 SOC 2 Compliant CI/CD** - OIDC authentication, SAST, SCA, container scanning, IaC validation
+- **🛡️ Security First** - Trivy, SonarQube, OWASP Dependency Check, Checkov integration
+- **📦 GitOps Ready** - ArgoCD configuration with HA setup for production
+- **🎯 Production-Grade** - Helm charts, multi-zone AKS, automated rollback, observability stack
+- **📊 Cost Optimized** - Environment-specific resource tiers, autoscaling, budget controls
+- **🔍 Audit & Compliance** - Comprehensive logging, 2-year retention, immutable audit trails
 
 ## Welcome to the OpenTelemetry Astronomy Shop Demo
 
-This repository contains the OpenTelemetry Astronomy Shop, a microservice-based
-distributed system intended to illustrate the implementation of OpenTelemetry in
-a near real-world environment.
+This repository contains the OpenTelemetry Astronomy Shop, a microservice-based distributed system demonstrating OpenTelemetry implementation in a production-like Azure environment.
 
-Our goals are threefold:
+### Key Features
 
-- Provide a realistic example of a distributed system that can be used to
-  demonstrate OpenTelemetry instrumentation and observability.
-- Build a base for vendors, tooling authors, and others to extend and
-  demonstrate their OpenTelemetry integrations.
-- Create a living example for OpenTelemetry contributors to use for testing new
-  versions of the API, SDK, and other components or enhancements.
+- **18 Microservices** across 10+ programming languages (.NET, Go, Python, Java, Node.js, Rust, C++, Ruby, PHP, Kotlin)
+- **Azure Kubernetes Service (AKS)** with multi-zone deployment
+- **Azure Container Registry (ACR)** with image signing and SBOM generation
+- **Azure PostgreSQL Flexible Server** with HA configuration
+- **Azure Cache for Redis** with replication
+- **Azure Event Hubs** for event streaming
+- **Azure Monitor** + OpenTelemetry for complete observability
+- **Network Policies** with Calico for zero-trust security
+- **Automated Blue-Green & Canary Deployments**
 
-We've already made [huge
-progress](https://github.com/open-telemetry/opentelemetry-demo/blob/main/CHANGELOG.md),
-and development is ongoing. We hope to represent the full feature set of
-OpenTelemetry across its languages in the future.
+## 📚 Quick Start
 
-If you'd like to help (**which we would love**), check out our [contributing
-guidance](./CONTRIBUTING.md).
+### Azure Deployment (Recommended)
 
-If you'd like to extend this demo or maintain a fork of it, read our
-[fork guidance](https://opentelemetry.io/docs/demo/forking/).
+Get started with the production-ready Azure infrastructure:
 
-## Quick start
+```bash
+# 1. Clone the repository
+git clone https://github.com/achyutamba/ultimate-devops-project-demo.git
+cd ultimate-devops-project-demo
 
-You can be up and running with the demo in a few minutes. Check out the docs for
-your preferred deployment method:
+# 2. Deploy infrastructure with Terraform
+cd terraform/environments/dev
+terraform init
+terraform plan
+terraform apply
 
-- [Docker](https://opentelemetry.io/docs/demo/docker_deployment/)
-- [Kubernetes](https://opentelemetry.io/docs/demo/kubernetes_deployment/)
+# 3. Deploy applications with Helm
+cd ../../../helm-charts
+helm install otel-demo ./otel-demo \
+  --namespace otel-demo-dev \
+  --values ./otel-demo/values-dev.yaml
 
-## Documentation
+# 4. Access the application
+kubectl port-forward -n otel-demo-dev svc/frontend 8080:8080
+```
 
-For detailed documentation, see [Demo Documentation][docs]. If you're curious
-about a specific feature, the [docs landing page][docs] can point you in the
-right direction.
+Visit http://localhost:8080 to see the Astronomy Shop.
 
-## Demos featuring the Astronomy Shop
+### Local Development with Docker
 
-We welcome any vendor to fork the project to demonstrate their services and
-adding a link below. The community is committed to maintaining the project and
-keeping it up to date for you.
+```bash
+# Quick start with Docker Compose
+docker-compose up -d
 
-|                           |                |                                  |
-|---------------------------|----------------|----------------------------------|
-| [AlibabaCloud LogService] | [Elastic]      | [OpenSearch]                     |
-| [AppDynamics]             | [Google Cloud] | [Sentry]                         |
-| [Aspecto]                 | [Grafana Labs] | [ServiceNow Cloud Observability] |
-| [Axiom]                   | [Guance]       | [Splunk]                         |
-| [Axoflow]                 | [Honeycomb.io] | [Sumo Logic]                     |
-| [Azure Data Explorer]     | [Instana]      | [TelemetryHub]                   |
-| [Coralogix]               | [Kloudfuse]    | [Teletrace]                      |
-| [Dash0]                   | [Liatrio]      | [Tracetest]                      |
-| [Datadog]                 | [Logz.io]      | [Uptrace]                        |
-| [Dynatrace]               | [New Relic]    |                                  |
+# Access the application
+open http://localhost:8080
+```
 
-## Contributing
+## 📖 Comprehensive Documentation
 
-To get involved with the project see our [CONTRIBUTING](CONTRIBUTING.md)
-documentation. Our [SIG Calls](CONTRIBUTING.md#join-a-sig-call) are every other
-Monday at 8:30 AM PST and anyone is welcome.
+Explore our detailed guides for implementing enterprise-grade Azure infrastructure:
 
-## Project leadership
+### Core Architecture
+- **[Architecture Overview](docs/ARCHITECTURE.md)** - Complete system design, network topology, security layers
+- **[Extended Architecture](docs/ARCHITECTURE_EXTENDED.md)** - Deep dive into microservices patterns
 
-[Maintainers](https://github.com/open-telemetry/community/blob/main/guides/contributor/membership.md#maintainer)
-([@open-telemetry/demo-maintainers](https://github.com/orgs/open-telemetry/teams/demo-maintainers)):
+### Infrastructure & IaC
+- **[Terraform Guide](docs/TERRAFORM.md)** - Multi-environment infrastructure provisioning
+- **[Terraform Extended](docs/TERRAFORM_EXTENDED.md)** - Advanced patterns, state management, modules
 
-- [Juliano Costa](https://github.com/julianocosta89), Datadog
-- [Mikko Viitanen](https://github.com/mviitane), Dynatrace
-- [Pierre Tessier](https://github.com/puckpuck), Honeycomb
+### CI/CD & GitOps
+- **[CI/CD Pipelines](docs/CICD-PIPELINES.md)** - Azure DevOps pipeline architecture
+- **[CI/CD Extended](docs/CI_CD_EXTENDED.md)** - SOC 2 compliance, security scanning, OIDC federation
+- **[GitOps with ArgoCD](docs/GITOPS_ARGOCD.md)** - Declarative deployments, sync policies
+- **[ArgoCD Quickstart](docs/ARGOCD_PIPELINE_QUICKSTART.md)** - Get started in 15 minutes
 
-[Approvers](https://github.com/open-telemetry/community/blob/main/guides/contributor/membership.md#approver)
-([@open-telemetry/demo-approvers](https://github.com/orgs/open-telemetry/teams/demo-approvers)):
+### Kubernetes & Helm
+- **[Helm & Kubernetes](docs/HELM-KUBERNETES.md)** - Chart structure, multi-environment values
+- **[Helm Extended](docs/HELM_K8S_EXTENDED.md)** - Advanced Helm patterns, HPA, Network Policies
 
-- [Cedric Ziel](https://github.com/cedricziel) Grafana Labs
-- [Penghan Wang](https://github.com/wph95), AppDynamics
-- [Reiley Yang](https://github.com/reyang), Microsoft
-- [Roger Coll](https://github.com/rogercoll), Elastic
-- [Ziqi Zhao](https://github.com/fatsheep9146), Alibaba
+### Security & Compliance
+- **[Security Extended](docs/SECURITY_EXTENDED.md)** - RBAC, Network Policies, secrets management
+- **SOC 2 CI/CD Security** - SAST, SCA, Trivy, Checkov integration (see [CI/CD Extended](docs/CI_CD_EXTENDED.md))
 
-Emeritus:
+### Operations & Monitoring
+- **[Observability Extended](docs/OBSERVABILITY_EXTENDED.md)** - OpenTelemetry, Prometheus, Grafana, Jaeger
+- **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Realtime Troubleshooting](docs/REALTIME_TROUBLESHOOTING.md)** - Production debugging techniques
+- **[Deployment Runbook](docs/DEPLOYMENT_RUNBOOK.md)** - Step-by-step deployment procedures
 
-- [Austin Parker](https://github.com/austinlparker)
-- [Carter Socha](https://github.com/cartersocha)
-- [Michael Maxwell](https://github.com/mic-max)
-- [Morgan McLean](https://github.com/mtwo)
+### Quick References
+- **[Quickstart Guide](docs/QUICKSTART.md)** - Get running in 10 minutes
+- **[Azure Implementation Guide](AZURE-IMPLEMENTATION-GUIDE.md)** - Complete setup walkthrough
+- **[Production Comparison](REAL-WORLD-PRODUCTION-COMPARISON.md)** - Dev vs Prod configurations
 
-### Thanks to all the people who have contributed
+## 🏗️ Architecture Highlights
 
-[![contributors](https://contributors-img.web.app/image?repo=open-telemetry/opentelemetry-demo)](https://github.com/open-telemetry/opentelemetry-demo/graphs/contributors)
+### Multi-Environment Strategy
+```
+Dev Environment          Staging Environment       Production Environment
+├── AKS: 2-4 nodes      ├── AKS: 3-8 nodes       ├── AKS: 5-20 nodes (multi-zone)
+├── PostgreSQL: B1ms    ├── PostgreSQL: D2s      ├── PostgreSQL: D4s + HA
+├── Redis: Basic C0     ├── Redis: Standard C1   ├── Redis: Premium P1
+└── Cost: ~$355/mo      └── Cost: ~$1,095/mo     └── Cost: ~$6,250/mo
+```
 
-[docs]: https://opentelemetry.io/docs/demo/
+### Security Scanning Pipeline
+```
+Build → SAST (SonarQube) → SCA (OWASP) → Trivy (Container) → Checkov (IaC) → Sign & Push → Deploy
+```
 
-<!-- Links for Demos featuring the Astronomy Shop section -->
+### Observability Stack
+```
+Application → OTel Collector → Prometheus/Jaeger/Azure Monitor → Grafana Dashboards
+```
 
-[AlibabaCloud LogService]: https://github.com/aliyun-sls/opentelemetry-demo
-[AppDynamics]: https://www.appdynamics.com/blog/cloud/how-to-observe-opentelemetry-demo-app-in-appdynamics-cloud/
-[Aspecto]: https://github.com/aspecto-io/opentelemetry-demo
-[Axiom]: https://play.axiom.co/axiom-play-qf1k/dashboards/otel.traces.otel-demo-traces
-[Axoflow]: https://axoflow.com/opentelemetry-support-in-more-detail-in-axosyslog-and-syslog-ng/
-[Azure Data Explorer]: https://github.com/Azure/Azure-kusto-opentelemetry-demo
-[Coralogix]: https://coralogix.com/blog/configure-otel-demo-send-telemetry-data-coralogix
-[Dash0]: https://github.com/dash0hq/opentelemetry-demo
-[Datadog]: https://docs.datadoghq.com/opentelemetry/guide/otel_demo_to_datadog
-[Dynatrace]: https://www.dynatrace.com/news/blog/opentelemetry-demo-application-with-dynatrace/
-[Elastic]: https://github.com/elastic/opentelemetry-demo
-[Google Cloud]: https://github.com/GoogleCloudPlatform/opentelemetry-demo
-[Grafana Labs]: https://github.com/grafana/opentelemetry-demo
-[Guance]: https://github.com/GuanceCloud/opentelemetry-demo
-[Honeycomb.io]: https://github.com/honeycombio/opentelemetry-demo
-[Instana]: https://github.com/instana/opentelemetry-demo
-[Kloudfuse]: https://github.com/kloudfuse/opentelemetry-demo
-[Liatrio]: https://github.com/liatrio/opentelemetry-demo
-[Logz.io]: https://logz.io/learn/how-to-run-opentelemetry-demo-with-logz-io/
-[New Relic]: https://github.com/newrelic/opentelemetry-demo
-[OpenSearch]: https://github.com/opensearch-project/opentelemetry-demo
-[Sentry]: https://github.com/getsentry/opentelemetry-demo
-[ServiceNow Cloud Observability]: https://docs.lightstep.com/otel/quick-start-operator#send-data-from-the-opentelemetry-demo
-[Splunk]: https://github.com/signalfx/opentelemetry-demo
-[Sumo Logic]: https://www.sumologic.com/blog/common-opentelemetry-demo-application/
-[TelemetryHub]: https://github.com/TelemetryHub/opentelemetry-demo/tree/telemetryhub-backend
-[Teletrace]: https://github.com/teletrace/opentelemetry-demo
-[Tracetest]: https://github.com/kubeshop/opentelemetry-demo
-[Uptrace]: https://github.com/uptrace/uptrace/tree/master/example/opentelemetry-demo
+## 🛠️ Technology Stack
+
+| Layer | Technologies |
+|-------|-------------|
+| **Cloud Platform** | Azure (AKS, ACR, PostgreSQL, Redis, Event Hubs, Key Vault) |
+| **Infrastructure as Code** | Terraform, Terragrunt, Azure CLI |
+| **Container Orchestration** | Kubernetes 1.28+, Helm 3 |
+| **CI/CD** | Azure DevOps, GitHub Actions, ArgoCD |
+| **Security Scanning** | SonarQube, Trivy, OWASP Dependency Check, Checkov, Cosign |
+| **Observability** | OpenTelemetry, Prometheus, Grafana, Jaeger, Azure Monitor |
+| **Languages** | .NET, Go, Python, Java, Node.js, Rust, C++, Ruby, PHP, Kotlin |
+
+## 💰 Cost Management
+
+Monthly infrastructure costs by environment:
+
+| Environment | Resources | Monthly Cost |
+|-------------|-----------|--------------|
+| **Dev** | Basic tier, 2-4 nodes | ~$355 |
+| **Staging** | Standard tier, 3-8 nodes | ~$1,095 |
+| **Production** | Premium/HA tier, 5-20 nodes | ~$6,250 |
+
+Includes cost optimization features:
+- Auto-shutdown for non-prod environments
+- Spot instances for Dev/Staging
+- Resource right-sizing recommendations
+- Tag-based cost allocation
+
+## 🔐 SOC 2 Compliance Features
+
+- ✅ OIDC federation (no long-lived credentials)
+- ✅ Multi-stage security scanning (SAST/SCA/Container/IaC)
+- ✅ Artifact signing with Cosign + SBOM generation
+- ✅ Immutable audit logs (2-year retention)
+- ✅ RBAC with least privilege
+- ✅ Network policies (zero-trust)
+- ✅ Automated compliance reporting
+
+## 🚀 CI/CD Pipeline Features
+
+- **Multi-Environment Deployments** (Dev/Staging/Prod)
+- **Security Scanning** at every stage
+- **Automated Rollback** on health check failures
+- **Blue-Green & Canary Deployments**
+- **GitOps with ArgoCD** for declarative infrastructure
+- **Slack/Teams Notifications**
+- **DORA Metrics Tracking**
+
+## 📊 Monitoring & Observability
+
+- **Distributed Tracing** with OpenTelemetry & Jaeger
+- **Metrics Collection** with Prometheus
+- **Visualization** with Grafana dashboards
+- **Azure Monitor Integration** for platform insights
+- **Centralized Logging** with Log Analytics
+- **Custom Alerts** for SLO violations
+
+## 🤝 Contributing
+
+This is a personal fork demonstrating enterprise Azure patterns. Feel free to:
+- Fork this repository for your own Azure implementations
+- Open issues for bugs or suggestions
+- Submit PRs for improvements
+
+For contributing to the upstream OpenTelemetry Demo project, visit:
+- [OpenTelemetry Demo Repository](https://github.com/open-telemetry/opentelemetry-demo)
+- [Contributing Guidelines](./CONTRIBUTING.md)
+
+## 📄 License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+Special thanks to:
+- The [OpenTelemetry](https://opentelemetry.io/) team for the amazing demo project
+- All contributors to the upstream [opentelemetry-demo](https://github.com/open-telemetry/opentelemetry-demo) repository
+- The Azure and Kubernetes communities for excellent documentation
+
+---
+
+**Original OpenTelemetry Demo:** https://github.com/open-telemetry/opentelemetry-demo  
+**Azure Enterprise Fork:** https://github.com/achyutamba/ultimate-devops-project-demo
+
+For questions or feedback, please open an issue in this repository.
