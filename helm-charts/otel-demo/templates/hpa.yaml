@@ -1,0 +1,56 @@
+{{- /*
+HorizontalPodAutoscalers for selected services.
+Configuration lives under .Values.hpa:
+  enabled: bool
+  items: list of:
+    name: service key matching values (e.g. frontend, recommendation)
+    minReplicas: int
+    maxReplicas: int
+    targetCPUUtilizationPercentage: int (optional)
+    targetMemoryUtilizationPercentage: int (optional)
+*/ -}}
+{{- if and .Values.hpa .Values.hpa.enabled }}
+{{- range $i, $hpa := .Values.hpa.items }}
+{{- if $hpa.name }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "otel-demo.fullname" $ }}-{{ $hpa.name }}
+  labels:
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" $ }}-{{ $hpa.name }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: {{ $hpa.name }}
+    app.kubernetes.io/part-of: otel-demo
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "otel-demo.fullname" $ }}-{{ $hpa.name }}
+  minReplicas: {{ $hpa.minReplicas | default 1 }}
+  maxReplicas: {{ $hpa.maxReplicas | default 3 }}
+  {{- /* Metrics section: include CPU and Memory if specified */}}
+  {{- $cpu := $hpa.targetCPUUtilizationPercentage }}
+  {{- $mem := $hpa.targetMemoryUtilizationPercentage }}
+  {{- if or $cpu $mem }}
+  metrics:
+    {{- if $cpu }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $cpu }}
+    {{- end }}
+    {{- if $mem }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ $mem }}
+    {{- end }}
+  {{- end }}
+---
+{{- end }}
+{{- end }}
+{{- end }}

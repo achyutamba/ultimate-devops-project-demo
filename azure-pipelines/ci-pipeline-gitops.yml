@@ -1,0 +1,221 @@
+# GitOps-Compatible CI Pipeline for Argo CD
+# Builds images, pushes to ACR, and updates Git values files to trigger Argo CD sync
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    include:
+      - src/*
+
+variables:
+  - group: otel-demo-common
+  - name: DOCKER_BUILD_KIT
+    value: '1'
+  - name: IMAGE_TAG
+    value: '$(Build.BuildId)'
+  - name: GIT_USER_EMAIL
+    value: 'azure-pipelines@example.com'
+  - name: GIT_USER_NAME
+    value: 'Azure Pipelines Bot'
+
+stages:
+  # ============================================
+  # BUILD & SCAN STAGE
+  # ============================================
+  - stage: BuildAndScan
+    displayName: 'Build, Scan & Push Images'
+    jobs:
+      - job: BuildImages
+        displayName: 'Build All Microservices'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+            persistCredentials: true  # Required for Git push
+            fetchDepth: 1
+
+          # Build and push frontend
+          - task: Docker@2
+            displayName: 'Build and Push frontend'
+            inputs:
+              command: 'buildAndPush'
+              repository: 'frontend'
+              dockerfile: 'src/frontend/Dockerfile'
+              containerRegistry: '$(AZURE_SERVICE_CONNECTION)'
+              tags: |
+                $(IMAGE_TAG)
+                latest
+
+          # Trivy scan
+          - script: |
+              docker run --rm \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                aquasec/trivy:latest image \
+                --severity HIGH,CRITICAL \
+                --exit-code 0 \
+                $(ACR_LOGIN_SERVER)/frontend:$(IMAGE_TAG)
+            displayName: 'Trivy security scan - frontend'
+            continueOnError: true
+
+          # Repeat for other services (cart, checkout, etc.)
+          # TODO: Add matrix strategy for all services
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish image tags'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)'
+              artifact: 'image-tags'
+
+  # ============================================
+  # UPDATE GIT FOR DEV ENVIRONMENT
+  # ============================================
+  - stage: UpdateGitDev
+    displayName: 'Update Git for Dev Environment'
+    dependsOn: BuildAndScan
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: UpdateValuesFile
+        displayName: 'Update values-dev.yaml with new image tags'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+            persistCredentials: true
+
+          - script: |
+              git config user.email "$(GIT_USER_EMAIL)"
+              git config user.name "$(GIT_USER_NAME)"
+            displayName: 'Configure Git'
+
+          - task: Bash@3
+            displayName: 'Update image tags in values-dev.yaml'
+            inputs:
+              targetType: 'inline'
+              script: |
+                #!/bin/bash
+                set -e
+                
+                VALUES_FILE="helm-charts/otel-demo/values-dev.yaml"
+                NEW_TAG="$(IMAGE_TAG)"
+                
+                echo "Updating image tags to $NEW_TAG in $VALUES_FILE"
+                
+                # Update all image tags using yq (install if needed)
+                if ! command -v yq &> /dev/null; then
+                  echo "Installing yq..."
+                  sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+                  sudo chmod +x /usr/local/bin/yq
+                fi
+                
+                # Update frontend image tag
+                yq eval ".frontend.image = \"$(ACR_LOGIN_SERVER)/frontend:$NEW_TAG\"" -i $VALUES_FILE
+                
+                # Update other service tags (add as needed)
+                # yq eval ".cart.image = \"$(ACR_LOGIN_SERVER)/cart:$NEW_TAG\"" -i $VALUES_FILE
+                # yq eval ".checkout.image = \"$(ACR_LOGIN_SERVER)/checkout:$NEW_TAG\"" -i $VALUES_FILE
+                
+                echo "Updated $VALUES_FILE:"
+                cat $VALUES_FILE | grep "image:"
+
+          - script: |
+              git add helm-charts/otel-demo/values-dev.yaml
+              git commit -m "chore: update dev image tags to $(IMAGE_TAG) [skip ci]" || echo "No changes to commit"
+              git push origin HEAD:main
+            displayName: 'Commit and push changes'
+
+  # ============================================
+  # UPDATE GIT FOR STAGING (MANUAL APPROVAL)
+  # ============================================
+  - stage: UpdateGitStaging
+    displayName: 'Update Git for Staging Environment'
+    dependsOn: UpdateGitDev
+    condition: succeeded()
+    jobs:
+      - deployment: ApproveStaging
+        displayName: 'Approve Staging Deployment'
+        pool:
+          vmImage: 'ubuntu-latest'
+        environment: 'staging-approval'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  persistCredentials: true
+
+                - script: |
+                    git config user.email "$(GIT_USER_EMAIL)"
+                    git config user.name "$(GIT_USER_NAME)"
+                  displayName: 'Configure Git'
+
+                - task: Bash@3
+                  displayName: 'Update values-staging.yaml'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      #!/bin/bash
+                      set -e
+                      
+                      VALUES_FILE="helm-charts/otel-demo/values-staging.yaml"
+                      NEW_TAG="$(IMAGE_TAG)"
+                      
+                      if ! command -v yq &> /dev/null; then
+                        sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+                        sudo chmod +x /usr/local/bin/yq
+                      fi
+                      
+                      yq eval ".frontend.image = \"$(ACR_LOGIN_SERVER)/frontend:$NEW_TAG\"" -i $VALUES_FILE
+                      
+                      git add $VALUES_FILE
+                      git commit -m "chore: update staging image tags to $NEW_TAG [skip ci]" || echo "No changes"
+                      git push origin HEAD:main
+
+  # ============================================
+  # UPDATE GIT FOR PRODUCTION (MANUAL APPROVAL)
+  # ============================================
+  - stage: UpdateGitProduction
+    displayName: 'Update Git for Production Environment'
+    dependsOn: UpdateGitStaging
+    condition: succeeded()
+    jobs:
+      - deployment: ApproveProduction
+        displayName: 'Approve Production Deployment'
+        pool:
+          vmImage: 'ubuntu-latest'
+        environment: 'production-approval'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  persistCredentials: true
+
+                - script: |
+                    git config user.email "$(GIT_USER_EMAIL)"
+                    git config user.name "$(GIT_USER_NAME)"
+                  displayName: 'Configure Git'
+
+                - task: Bash@3
+                  displayName: 'Update values-production.yaml'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      #!/bin/bash
+                      set -e
+                      
+                      VALUES_FILE="helm-charts/otel-demo/values-production.yaml"
+                      NEW_TAG="$(IMAGE_TAG)"
+                      
+                      if ! command -v yq &> /dev/null; then
+                        sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+                        sudo chmod +x /usr/local/bin/yq
+                      fi
+                      
+                      yq eval ".frontend.image = \"$(ACR_LOGIN_SERVER)/frontend:$NEW_TAG\"" -i $VALUES_FILE
+                      
+                      git add $VALUES_FILE
+                      git commit -m "chore: update production image tags to $NEW_TAG [skip ci]" || echo "No changes"
+                      git push origin HEAD:main

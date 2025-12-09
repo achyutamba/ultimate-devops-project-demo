@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "otel-demo.fullname" . }}-frontend
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-frontend
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/part-of: otel-demo
+spec:
+  type: {{ .Values.frontend.service.type | default "ClusterIP" }}
+  ports:
+    - port: {{ .Values.frontend.service.port | default 8080 }}
+      name: tcp-service
+      targetPort: {{ .Values.frontend.service.targetPort | default 8080 }}
+  selector:
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-frontend

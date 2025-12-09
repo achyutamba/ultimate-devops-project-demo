@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "otel-demo.fullname" . }}-currencyservice
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: currencyservice
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-currencyservice
+spec:
+  type: {{ .Values.currency.service.type | default "ClusterIP" }}
+  ports:
+    - port: {{ .Values.currency.service.port | default 8080 }}
+      targetPort: {{ .Values.currency.service.targetPort | default 8080 }}
+      name: tcp-service
+  selector:
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-currencyservice

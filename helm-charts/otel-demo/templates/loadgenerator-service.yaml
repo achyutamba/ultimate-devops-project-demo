@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "otel-demo.fullname" . }}-loadgenerator
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: loadgenerator
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-loadgenerator
+spec:
+  type: {{ .Values.loadgenerator.service.type | default "ClusterIP" }}
+  ports:
+    - port: {{ .Values.loadgenerator.service.port | default 8089 }}
+      targetPort: {{ .Values.loadgenerator.service.targetPort | default 8089 }}
+      name: tcp-service
+  selector:
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-loadgenerator

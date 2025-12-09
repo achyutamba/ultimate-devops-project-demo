@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "otel-demo.fullname" . }}-recommendationservice
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: recommendationservice
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-recommendationservice
+spec:
+  type: {{ .Values.recommendation.service.type | default "ClusterIP" }}
+  ports:
+    - port: {{ .Values.recommendation.service.port | default 8080 }}
+      targetPort: {{ .Values.recommendation.service.targetPort | default 8080 }}
+      name: tcp-service
+  selector:
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-recommendationservice

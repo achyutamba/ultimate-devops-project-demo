@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-rbac-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-rbac-cm
+    app.kubernetes.io/part-of: argocd
+# RBAC policies: grant admin to a specific Azure AD group, readonly to others
+# Replace <AAD_ADMIN_GROUP_ID> with your Azure AD group object ID
+# Reference: https://argo-cd.readthedocs.io/en/stable/operator-manual/rbac/
+data:
+  policy.csv: |
+    g, <AAD_ADMIN_GROUP_ID>, role:admin
+    # Example: map another group to read-only
+    g, <AAD_READONLY_GROUP_ID>, role:readonly
+  policy.default: role:readonly
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-cm
+    app.kubernetes.io/part-of: argocd
+data:
+  url: https://argocd.example.com
+  # OIDC configuration for Azure AD SSO. Replace placeholders.
+  oidc.config: |
+    name: AzureAD
+    issuer: https://login.microsoftonline.com/<TENANT_ID>/v2.0
+    clientID: $AZURE_AD_CLIENT_ID
+    clientSecret: $AZURE_AD_CLIENT_SECRET
+    requestedScopes:
+    - openid
+    - profile
+    - email
+    - groups
+  accounts.readonly: apiKey
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-secret
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-secret
+    app.kubernetes.io/part-of: argocd
+type: Opaque
+stringData:
+  # Store Azure AD client secret here; avoid committing real value. Use GitHub Actions or Key Vault injection.
+  oidc.azure.clientSecret: <REPLACE_WITH_AZURE_AD_APP_SECRET>

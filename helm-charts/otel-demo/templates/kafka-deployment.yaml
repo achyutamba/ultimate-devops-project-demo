@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "otel-demo.fullname" . }}-kafka
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: kafka
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-kafka
+spec:
+  replicas: {{ .Values.kafka.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-kafka
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: kafka
+        app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-kafka
+      {{- if or .Values.global.podAnnotations .Values.kafka.podAnnotations }}
+      annotations:
+        {{- with .Values.global.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.kafka.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName | default "otel-demo" }}
+      {{- with .Values.global.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: kafka
+          image: {{ .Values.kafka.image.repository }}:{{ .Values.kafka.image.tag }}
+          imagePullPolicy: {{ .Values.kafka.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: {{ .Values.kafka.service.ports.plaintext | default 9092 }}
+              name: plaintext
+            - containerPort: {{ .Values.kafka.service.ports.controller | default 9093 }}
+              name: controller
+          env:
+            {{- if .Values.kafka.env }}
+            {{- toYaml .Values.kafka.env | nindent 12 }}
+            {{- end }}
+          {{- $svcSec := .Values.kafka.securityContext | default dict }}
+          {{- $globalSec := .Values.global.containerSecurityContext | default dict }}
+          {{- $sec := $svcSec | default $globalSec }}
+          {{- if $sec }}
+          securityContext:
+            {{- toYaml $sec | nindent 12 }}
+          {{- end }}
+          {{- $svcRes := .Values.kafka.resources | default dict }}
+          {{- $globalRes := .Values.global.resources | default dict }}
+          {{- $res := $svcRes | default $globalRes }}
+          {{- if $res }}
+          resources:
+            {{- toYaml $res | nindent 12 }}
+          {{- end }}

@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=./values.schema.json
+replicaDefaults: 2
+frontend:
+  replicaCount: 2
+frontendproxy:
+  replicaCount: 2
+  ingress:
+    enabled: true
+    className: "nginx"
+    hosts:
+      - host: staging.example.local
+        paths:
+          - path: /
+            pathType: Prefix
+cart:
+  replicaCount: 2
+checkout:
+  replicaCount: 2
+ad:
+  replicaCount: 2
+currency:
+  replicaCount: 2
+email:
+  replicaCount: 2
+frauddetection:
+  replicaCount: 2
+imageprovider:
+  replicaCount: 2
+kafka:
+  replicaCount: 1
+loadgenerator:
+  replicaCount: 1
+payment:
+  replicaCount: 2
+productcatalog:
+  replicaCount: 2
+quote:
+  replicaCount: 2
+recommendation:
+  replicaCount: 2
+shipping:
+  replicaCount: 2
+valkey:
+  replicaCount: 1
+
+# Enable HPAs in staging for critical stateless services
+hpa:
+  enabled: true
+  items:
+    - name: frontend
+      minReplicas: 2
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 70
+    - name: recommendation
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 75
+    - name: cart
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70

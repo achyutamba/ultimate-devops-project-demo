@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=./values.schema.json
+replicaDefaults: 3
+frontend:
+  replicaCount: 4
+frontendproxy:
+  replicaCount: 3
+  ingress:
+    enabled: true
+    className: "nginx"
+    hosts:
+      - host: shop.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+cart:
+  replicaCount: 3
+checkout:
+  replicaCount: 3
+ad:
+  replicaCount: 3
+currency:
+  replicaCount: 3
+email:
+  replicaCount: 2
+frauddetection:
+  replicaCount: 2
+imageprovider:
+  replicaCount: 2
+kafka:
+  replicaCount: 2
+loadgenerator:
+  replicaCount: 1
+payment:
+  replicaCount: 3
+productcatalog:
+  replicaCount: 3
+quote:
+  replicaCount: 2
+recommendation:
+  replicaCount: 3
+shipping:
+  replicaCount: 3
+valkey:
+  replicaCount: 2
+
+# Enable HPAs in production for key stateless services
+hpa:
+  enabled: true
+  items:
+    - name: frontend
+      minReplicas: 4
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 65
+    - name: recommendation
+      minReplicas: 3
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70
+    - name: cart
+      minReplicas: 3
+      maxReplicas: 8
+      targetCPUUtilizationPercentage: 70

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "otel-demo.fullname" . }}-productcatalogservice
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: productcatalogservice
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-productcatalogservice
+spec:
+  type: {{ .Values.productcatalog.service.type | default "ClusterIP" }}
+  ports:
+    - port: {{ .Values.productcatalog.service.port | default 8080 }}
+      targetPort: {{ .Values.productcatalog.service.targetPort | default 8080 }}
+      name: tcp-service
+  selector:
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-productcatalogservice

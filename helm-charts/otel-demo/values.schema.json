@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "otel-demo values",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "global": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "podAnnotations": {"type": "object", "additionalProperties": true},
+        "podSecurityContext": {"type": "object", "additionalProperties": true},
+        "containerSecurityContext": {"type": "object", "additionalProperties": true},
+        "resources": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "hpa": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "name": {"type": "string"},
+              "minReplicas": {"type": "integer", "minimum": 1},
+              "maxReplicas": {"type": "integer", "minimum": 1},
+              "targetCPUUtilizationPercentage": {"type": "integer", "minimum": 1, "maximum": 100},
+              "targetMemoryUtilizationPercentage": {"type": "integer", "minimum": 1, "maximum": 100}
+            },
+            "required": ["name"]
+          }
+        }
+      }
+    }
+  }
+}

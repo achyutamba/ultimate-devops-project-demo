@@ -1,0 +1,285 @@
+# yaml-language-server: $schema=./values.schema.json
+# Default values for otel-demo Helm chart
+
+global:
+  podAnnotations: {}
+  podSecurityContext: {}
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+
+hpa:
+  enabled: false
+  # List of HPAs to create when enabled. Set enabled: true to deploy these.
+  items:
+    - name: frontend
+      minReplicas: 2
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 70
+    - name: recommendation
+      minReplicas: 2
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 75
+  # Example memory target (uncomment to use):
+  #   targetMemoryUtilizationPercentage: 80
+
+frontend:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-frontend"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  env: {}
+
+serviceAccountName: "otel-demo"
+
+accounting:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-accountingservice"
+    pullPolicy: "IfNotPresent"
+  env: {}
+
+ad:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-adservice"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  env: {}
+
+cart:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-cartservice"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  env: {}
+
+checkout:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-checkoutservice"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  env: {}
+
+currency:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-currencyservice"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  env: {}
+
+email:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-emailservice"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  env: {}
+
+flagd:
+  replicaCount: 1
+  images:
+    flagd:
+      repository: "ghcr.io/open-feature/flagd"
+      tag: "v0.11.1"
+      pullPolicy: "IfNotPresent"
+    flagdui:
+      repository: "ghcr.io/open-telemetry/demo"
+      tag: "1.12.0-flagdui"
+      pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8013
+  config:
+    enabled: true
+    flags: {}
+
+frauddetection:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-frauddetectionservice"
+    pullPolicy: "IfNotPresent"
+  env: {}
+
+imageprovider:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-imageprovider"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8081
+    targetPort: 8081
+  env: {}
+
+kafka:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-kafka"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    ports:
+      plaintext: 9092
+      controller: 9093
+  env: {}
+
+loadgenerator:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-loadgenerator"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8089
+    targetPort: 8089
+  env: {}
+
+payment:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-paymentservice"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  env: {}
+
+productcatalog:
+  replicaCount: 1
+  image:
+    repository: "abhishekf5/product-catalog"
+    tag: "13134113508"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  env: {}
+
+quote:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-quoteservice"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  env: {}
+
+recommendation:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-recommendationservice"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  env: {}
+
+shipping:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-shippingservice"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  env: {}
+
+valkey:
+  replicaCount: 1
+  image:
+    repository: "valkey/valkey"
+    tag: "7.2-alpine"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 6379
+    targetPort: 6379
+  env: {}
+
+frontendproxy:
+  replicaCount: 1
+  image:
+    repository: "ghcr.io/open-telemetry/demo"
+    tag: "1.12.0-frontendproxy"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  ingress:
+    enabled: false
+    className: ""
+    hosts:
+      - host: example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    annotations: {}
+  env: {}
+
+networkPolicy:
+  enabled: true
+
+observability:
+  namespace: observability
+  otelCollector:
+    enabled: true
+    image: "otel/opentelemetry-collector:latest"
+    resourceAttributes: "service.name=otel-demo"
+  prometheus:
+    enabled: true
+    image: "prom/prometheus:latest"
+  grafana:
+    enabled: true
+    image: "grafana/grafana:latest"

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "otel-demo.fullname" . }}-adservice
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: adservice
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-adservice
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/part-of: otel-demo
+spec:
+  type: {{ .Values.ad.service.type | default "ClusterIP" }}
+  ports:
+    - port: {{ .Values.ad.service.port | default 8080 }}
+      name: tcp-service
+      targetPort: {{ .Values.ad.service.targetPort | default 8080 }}
+  selector:
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-adservice

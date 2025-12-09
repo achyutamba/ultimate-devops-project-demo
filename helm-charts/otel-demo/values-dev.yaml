@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=./values.schema.json
+replicaDefaults: 1
+frontend:
+  replicaCount: 1
+frontendproxy:
+  replicaCount: 1
+  ingress:
+    enabled: true
+    className: "nginx"
+    hosts:
+      - host: dev.example.local
+        paths:
+          - path: /
+            pathType: Prefix
+cart:
+  replicaCount: 1
+checkout:
+  replicaCount: 1
+ad:
+  replicaCount: 1
+currency:
+  replicaCount: 1
+email:
+  replicaCount: 1
+frauddetection:
+  replicaCount: 1
+imageprovider:
+  replicaCount: 1
+kafka:
+  replicaCount: 1
+loadgenerator:
+  replicaCount: 1
+payment:
+  replicaCount: 1
+productcatalog:
+  replicaCount: 1
+quote:
+  replicaCount: 1
+recommendation:
+  replicaCount: 1
+shipping:
+  replicaCount: 1
+valkey:
+  replicaCount: 1
+
+# Dev: HPA disabled for simplicity; uncomment to test autoscaling
+# hpa:
+#   enabled: true
+#   items:
+#     - name: frontend
+#       minReplicas: 1
+#       maxReplicas: 3
+#       targetCPUUtilizationPercentage: 75

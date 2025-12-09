@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "otel-demo.fullname" . }}-loadgenerator
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: loadgenerator
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-loadgenerator
+spec:
+  replicas: {{ .Values.loadgenerator.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-loadgenerator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: loadgenerator
+        app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-loadgenerator
+      {{- if or .Values.global.podAnnotations .Values.loadgenerator.podAnnotations }}
+      annotations:
+        {{- with .Values.global.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.loadgenerator.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName | default "otel-demo" }}
+      {{- with .Values.global.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: loadgenerator
+          image: {{ .Values.loadgenerator.image.repository }}:{{ .Values.loadgenerator.image.tag }}
+          imagePullPolicy: {{ .Values.loadgenerator.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: {{ .Values.loadgenerator.service.port | default 8089 }}
+              name: service
+          env:
+            {{- if .Values.loadgenerator.env }}
+            {{- toYaml .Values.loadgenerator.env | nindent 12 }}
+            {{- end }}
+          {{- $svcSec := .Values.loadgenerator.securityContext | default dict }}
+          {{- $globalSec := .Values.global.containerSecurityContext | default dict }}
+          {{- $sec := $svcSec | default $globalSec }}
+          {{- if $sec }}
+          securityContext:
+            {{- toYaml $sec | nindent 12 }}
+          {{- end }}
+          {{- $svcRes := .Values.loadgenerator.resources | default dict }}
+          {{- $globalRes := .Values.global.resources | default dict }}
+          {{- $res := $svcRes | default $globalRes }}
+          {{- if $res }}
+          resources:
+            {{- toYaml $res | nindent 12 }}
+          {{- end }}

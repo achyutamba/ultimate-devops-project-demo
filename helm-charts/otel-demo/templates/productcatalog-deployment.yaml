@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "otel-demo.fullname" . }}-productcatalogservice
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: productcatalogservice
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-productcatalogservice
+spec:
+  replicas: {{ .Values.productcatalog.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-productcatalogservice
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: productcatalogservice
+        app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-productcatalogservice
+      {{- if or .Values.global.podAnnotations .Values.productcatalog.podAnnotations }}
+      annotations:
+        {{- with .Values.global.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.productcatalog.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName | default "otel-demo" }}
+      {{- with .Values.global.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: productcatalogservice
+          image: {{ .Values.productcatalog.image.repository }}:{{ .Values.productcatalog.image.tag }}
+          imagePullPolicy: {{ .Values.productcatalog.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: {{ .Values.productcatalog.service.port | default 8080 }}
+              name: service
+          {{- $svcSec := .Values.productcatalog.securityContext | default dict }}
+          {{- $globalSec := .Values.global.containerSecurityContext | default dict }}
+          {{- $sec := $svcSec | default $globalSec }}
+          {{- if $sec }}
+          securityContext:
+            {{- toYaml $sec | nindent 12 }}
+          {{- end }}
+          {{- $svcRes := .Values.productcatalog.resources | default dict }}
+          {{- $globalRes := .Values.global.resources | default dict }}
+          {{- $res := $svcRes | default $globalRes }}
+          {{- if $res }}
+          resources:
+            {{- toYaml $res | nindent 12 }}
+          {{- end }}
+          env:
+            {{- if .Values.productcatalog.env }}
+            {{- toYaml .Values.productcatalog.env | nindent 12 }}
+            {{- end }}

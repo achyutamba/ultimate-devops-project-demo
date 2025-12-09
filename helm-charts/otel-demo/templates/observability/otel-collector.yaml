@@ -1,0 +1,28 @@
+{{- if .Values.observability.otelCollector.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "otel-demo.fullname" . }}-otel-collector
+  namespace: {{ .Values.observability.namespace }}
+  labels:
+    app: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+        - name: otel-collector
+          image: {{ .Values.observability.otelCollector.image }}
+          ports:
+            - containerPort: 4317
+            - containerPort: 55680
+          env:
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: {{ .Values.observability.otelCollector.resourceAttributes | quote }}
+{{- end }}

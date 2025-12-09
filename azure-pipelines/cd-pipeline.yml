@@ -1,0 +1,534 @@
+# Azure DevOps CD Pipeline - Deploy to AKS with Rolling Updates
+# Deploys OpenTelemetry Demo to Dev → Staging → Production with gradual rollout
+
+trigger: none  # Manual or CI pipeline completion
+
+resources:
+  pipelines:
+    - pipeline: ci-pipeline
+      source: 'otel-demo-ci'
+      trigger:
+        branches:
+          include:
+            - main
+
+variables:
+  - group: otel-demo-common
+  - name: IMAGE_TAG
+    value: '$(resources.pipeline.ci-pipeline.runID)'
+
+stages:
+  # ============================================
+  # OBSERVABILITY STACK DEPLOYMENT
+  # ============================================
+  - stage: DeployObservability
+    displayName: 'Deploy Observability Stack'
+    jobs:
+      - deployment: DeployObservability
+        displayName: 'Deploy to Observability Namespace'
+        pool:
+          vmImage: 'ubuntu-latest'
+        environment: 'otel-demo-observability'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  displayName: 'Get AKS credentials'
+                  inputs:
+                    azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      az aks get-credentials \
+                        --resource-group $(DEV_RESOURCE_GROUP) \
+                        --name $(DEV_AKS_CLUSTER) \
+                        --overwrite-existing
+                - task: HelmInstaller@1
+                  displayName: 'Install Helm 3'
+                  inputs:
+                    helmVersionToInstall: '3.12.0'
+                - script: |
+                    helm lint ./helm-charts/otel-demo -f ./helm-charts/otel-demo/values.yaml
+                    helm upgrade --install otel-demo-observability ./helm-charts/otel-demo \
+                      -f ./helm-charts/otel-demo/values.yaml \
+                      --namespace observability \
+                      --create-namespace
+                  displayName: 'Deploy Observability Stack'
+  # ============================================
+  # DEVELOPMENT DEPLOYMENT
+  # ============================================
+  - stage: DeployToDev
+    displayName: 'Deploy to Development'
+    jobs:
+      - deployment: DeployDev
+        displayName: 'Deploy to Dev AKS'
+        pool:
+          vmImage: 'ubuntu-latest'
+        environment: 'otel-demo-dev'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                
+                - task: AzureCLI@2
+                  displayName: 'Get AKS credentials'
+                  inputs:
+                    azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      az aks get-credentials \
+                        --resource-group $(DEV_RESOURCE_GROUP) \
+                        --name $(DEV_AKS_CLUSTER) \
+                        --overwrite-existing
+                
+                - task: HelmInstaller@1
+                  displayName: 'Install Helm 3'
+                  inputs:
+                    helmVersionToInstall: '3.12.0'
+
+                - script: |
+                    helm lint ./helm-charts/otel-demo -f ./helm-charts/otel-demo/values-$(DEV_ENVIRONMENT).yaml
+                    helm template otel-demo ./helm-charts/otel-demo -f ./helm-charts/otel-demo/values-$(DEV_ENVIRONMENT).yaml > /dev/null
+                  displayName: 'Helm lint & render (Dev)'
+
+                - task: HelmDeploy@0
+                  displayName: 'Helm upgrade otel-demo'
+                  inputs:
+                    connectionType: 'Azure Resource Manager'
+                    azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                    azureResourceGroup: '$(DEV_RESOURCE_GROUP)'
+                    kubernetesCluster: '$(DEV_AKS_CLUSTER)'
+                    namespace: '$(DEV_NAMESPACE)'
+                    command: 'upgrade'
+                    chartType: 'FilePath'
+                    chartPath: './helm-charts/otel-demo'
+                    releaseName: 'otel-demo'
+                    valueFile: './helm-charts/otel-demo/values-$(DEV_ENVIRONMENT).yaml'
+                    overrideValues: |
+                      image.tag=$(IMAGE_TAG)
+                      acr.loginServer=$(ACR_LOGIN_SERVER)
+                    install: true
+                    waitForExecution: true
+                    arguments: '--create-namespace --timeout 10m'
+                
+                - script: |
+                    echo "Waiting for pods to be ready..."
+                    kubectl wait --for=condition=ready pod \
+                      -l app.kubernetes.io/instance=otel-demo \
+                      -n otel-demo \
+                      --timeout=300s
+                  displayName: 'Wait for pods'
+                
+                - script: |
+                    #!/bin/bash
+                    set -e
+                    
+                    FRONTEND_URL=$(kubectl get svc otel-demo-frontend \
+                      -n otel-demo \
+                      -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+                    
+                    echo "Testing frontend at http://$FRONTEND_URL"
+                    
+                    # Health check
+                    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://$FRONTEND_URL/ || echo "000")
+                    
+                    if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
+                      echo "✅ Health check passed (HTTP $HTTP_CODE)"
+                      exit 0
+                    else
+                      echo "❌ Health check failed (HTTP $HTTP_CODE)"
+                      exit 1
+                    fi
+                  displayName: 'Smoke test'
+                  continueOnError: false
+
+  # ============================================
+  # STAGING DEPLOYMENT
+  # ============================================
+  - stage: DeployToStaging
+    displayName: 'Deploy to Staging'
+    dependsOn: DeployToDev
+    condition: succeeded()
+    jobs:
+      - deployment: DeployStaging
+        displayName: 'Deploy to Staging AKS'
+        pool:
+          vmImage: 'ubuntu-latest'
+        environment: 'otel-demo-staging'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                
+                - task: AzureCLI@2
+                  displayName: 'Get AKS credentials'
+                  inputs:
+                    azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      az aks get-credentials \
+                        --resource-group $(STAGING_RESOURCE_GROUP) \
+                        --name $(STAGING_AKS_CLUSTER) \
+                        --overwrite-existing
+                
+                - task: HelmInstaller@1
+                  displayName: 'Install Helm 3'
+                  inputs:
+                    helmVersionToInstall: '3.12.0'
+
+                - script: |
+                    helm lint ./helm-charts/otel-demo -f ./helm-charts/otel-demo/values-$(STAGING_ENVIRONMENT).yaml
+                    helm template otel-demo ./helm-charts/otel-demo -f ./helm-charts/otel-demo/values-$(STAGING_ENVIRONMENT).yaml > /dev/null
+                  displayName: 'Helm lint & render (Staging)'
+
+                - task: HelmDeploy@0
+                  displayName: 'Helm upgrade otel-demo (canary)'
+                  inputs:
+                    connectionType: 'Azure Resource Manager'
+                    azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                    azureResourceGroup: '$(STAGING_RESOURCE_GROUP)'
+                    kubernetesCluster: '$(STAGING_AKS_CLUSTER)'
+                    namespace: '$(STAGING_NAMESPACE)'
+                    command: 'upgrade'
+                    chartType: 'FilePath'
+                    chartPath: './helm-charts/otel-demo'
+                    releaseName: 'otel-demo'
+                    valueFile: './helm-charts/otel-demo/values-$(STAGING_ENVIRONMENT).yaml'
+                    overrideValues: |
+                      image.tag=$(IMAGE_TAG)
+                      acr.loginServer=$(ACR_LOGIN_SERVER)
+                      rollout.strategy=canary
+                      rollout.canaryWeight=25
+                    install: true
+                    waitForExecution: true
+                
+                - script: |
+                    echo "Monitoring canary deployment for 5 minutes..."
+                    sleep 300
+                    
+                    # Check error rate
+                    ERROR_RATE=$(kubectl logs -l app=frontend -n otel-demo --tail=100 | grep -c "ERROR" || echo "0")
+                    
+                    if [ "$ERROR_RATE" -gt 10 ]; then
+                      echo "❌ High error rate detected: $ERROR_RATE errors"
+                      exit 1
+                    fi
+                    
+                    echo "✅ Canary looks healthy"
+                  displayName: 'Monitor canary'
+                
+                - task: HelmDeploy@0
+                  displayName: 'Promote canary to 100%'
+                  inputs:
+                    connectionType: 'Azure Resource Manager'
+                    azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                    azureResourceGroup: '$(STAGING_RESOURCE_GROUP)'
+                    kubernetesCluster: '$(STAGING_AKS_CLUSTER)'
+                    namespace: '$(STAGING_NAMESPACE)'
+                    command: 'upgrade'
+                    chartType: 'FilePath'
+                    chartPath: './helm-charts/otel-demo'
+                    releaseName: 'otel-demo'
+                    valueFile: './helm-charts/otel-demo/values-$(STAGING_ENVIRONMENT).yaml'
+                    overrideValues: |
+                      image.tag=$(IMAGE_TAG)
+                      acr.loginServer=$(ACR_LOGIN_SERVER)
+                      rollout.strategy=rolling
+                      rollout.canaryWeight=100
+
+
+  # ============================================
+  # DEV DEPLOYMENT
+  # ============================================
+  - stage: DeployToDev
+    displayName: 'Deploy to Dev'
+    dependsOn: []
+    condition: succeeded()
+    jobs:
+      - deployment: DeployDev
+        displayName: 'Deploy to Dev AKS'
+        pool:
+          vmImage: 'ubuntu-latest'
+        environment: 'otel-demo-dev'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  displayName: 'Get AKS credentials (Dev)'
+                  inputs:
+                    azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      az aks get-credentials \
+                        --resource-group $(DEV_RESOURCE_GROUP) \
+                        --name $(DEV_AKS_CLUSTER) \
+                        --overwrite-existing
+                - task: HelmInstaller@1
+                  displayName: 'Install Helm 3'
+                  inputs:
+                    helmVersionToInstall: '3.12.0'
+                - script: |
+                    helm lint ./helm-charts/otel-demo -f ./helm-charts/otel-demo/values-dev.yaml
+                    helm template otel-demo ./helm-charts/otel-demo -f ./helm-charts/otel-demo/values-dev.yaml > /dev/null
+                  displayName: 'Helm lint & render (Dev)'
+                - task: HelmDeploy@0
+                  displayName: 'Helm upgrade (Dev)'
+                  inputs:
+                    connectionType: 'Azure Resource Manager'
+                    azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                    azureResourceGroup: '$(DEV_RESOURCE_GROUP)'
+                    kubernetesCluster: '$(DEV_AKS_CLUSTER)'
+                    namespace: '$(DEV_NAMESPACE)'
+                    command: 'upgrade'
+                    chartType: 'FilePath'
+                    chartPath: './helm-charts/otel-demo'
+                    releaseName: 'otel-demo'
+                    valueFile: './helm-charts/otel-demo/values-dev.yaml'
+                    overrideValues: |
+                      image.tag=$(DEV_IMAGE_TAG)
+                      acr.loginServer=$(ACR_LOGIN_SERVER)
+                      rollout.strategy=rolling
+                    install: true
+                    waitForExecution: true
+                    arguments: '--timeout 10m'
+                - script: |
+                    echo "Monitoring dev deployment..."
+                    for i in {1..5}; do
+                      echo "Check $i/5..."
+                      READY_PODS=$(kubectl get pods -n $(DEV_NAMESPACE) -l app.kubernetes.io/instance=otel-demo --field-selector=status.phase=Running --no-headers | wc -l)
+                      TOTAL_PODS=$(kubectl get pods -n $(DEV_NAMESPACE) -l app.kubernetes.io/instance=otel-demo --no-headers | wc -l)
+                      echo "Ready pods: $READY_PODS/$TOTAL_PODS"
+                      if [ "$READY_PODS" -eq "$TOTAL_PODS" ]; then
+                        echo "✅ All pods running successfully"
+                        exit 0
+                      fi
+                      sleep 20
+                    done
+                    echo "❌ Deployment validation failed"
+                    exit 1
+                  displayName: 'Validate dev deployment'
+                - script: |
+                    FRONTEND_URL=$(kubectl get svc otel-demo-frontend \
+                      -n $(DEV_NAMESPACE) \
+                      -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+                    echo "Dev URL: http://$FRONTEND_URL"
+                    echo "##vso[task.setvariable variable=DEV_URL]http://$FRONTEND_URL"
+                  displayName: 'Get dev URL'
+
+  # ============================================
+  # STAGING DEPLOYMENT
+  # ============================================
+  - stage: DeployToStaging
+    displayName: 'Deploy to Staging'
+    dependsOn: DeployToDev
+    condition: succeeded()
+    jobs:
+      - deployment: DeployStaging
+        displayName: 'Deploy to Staging AKS'
+        pool:
+          vmImage: 'ubuntu-latest'
+        environment: 'otel-demo-staging'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  displayName: 'Get AKS credentials (Staging)'
+                  inputs:
+                    azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      az aks get-credentials \
+                        --resource-group $(STAGING_RESOURCE_GROUP) \
+                        --name $(STAGING_AKS_CLUSTER) \
+                        --overwrite-existing
+                - task: HelmInstaller@1
+                  displayName: 'Install Helm 3'
+                  inputs:
+                    helmVersionToInstall: '3.12.0'
+                - script: |
+                    helm lint ./helm-charts/otel-demo -f ./helm-charts/otel-demo/values-staging.yaml
+                    helm template otel-demo ./helm-charts/otel-demo -f ./helm-charts/otel-demo/values-staging.yaml > /dev/null
+                  displayName: 'Helm lint & render (Staging)'
+                - task: HelmDeploy@0
+                  displayName: 'Helm upgrade (Staging)'
+                  inputs:
+                    connectionType: 'Azure Resource Manager'
+                    azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                    azureResourceGroup: '$(STAGING_RESOURCE_GROUP)'
+                    kubernetesCluster: '$(STAGING_AKS_CLUSTER)'
+                    namespace: '$(STAGING_NAMESPACE)'
+                    command: 'upgrade'
+                    chartType: 'FilePath'
+                    chartPath: './helm-charts/otel-demo'
+                    releaseName: 'otel-demo'
+                    valueFile: './helm-charts/otel-demo/values-staging.yaml'
+                    overrideValues: |
+                      image.tag=$(STAGING_IMAGE_TAG)
+                      acr.loginServer=$(ACR_LOGIN_SERVER)
+                      rollout.strategy=rolling
+                    install: true
+                    waitForExecution: true
+                    arguments: '--timeout 10m'
+                - script: |
+                    echo "Monitoring staging deployment..."
+                    for i in {1..5}; do
+                      echo "Check $i/5..."
+                      READY_PODS=$(kubectl get pods -n $(STAGING_NAMESPACE) -l app.kubernetes.io/instance=otel-demo --field-selector=status.phase=Running --no-headers | wc -l)
+                      TOTAL_PODS=$(kubectl get pods -n $(STAGING_NAMESPACE) -l app.kubernetes.io/instance=otel-demo --no-headers | wc -l)
+                      echo "Ready pods: $READY_PODS/$TOTAL_PODS"
+                      if [ "$READY_PODS" -eq "$TOTAL_PODS" ]; then
+                        echo "✅ All pods running successfully"
+                        exit 0
+                      fi
+                      sleep 20
+                    done
+                    echo "❌ Deployment validation failed"
+                    exit 1
+                  displayName: 'Validate staging deployment'
+                - script: |
+                    FRONTEND_URL=$(kubectl get svc otel-demo-frontend \
+                      -n $(STAGING_NAMESPACE) \
+                      -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+                    echo "Staging URL: http://$FRONTEND_URL"
+                    echo "##vso[task.setvariable variable=STAGING_URL]http://$FRONTEND_URL"
+                  displayName: 'Get staging URL'
+
+  # ============================================
+  # PRODUCTION DEPLOYMENT (Manual Approval)
+  # ============================================
+  - stage: DeployToProduction
+    displayName: 'Deploy to Production'
+    dependsOn: DeployToStaging
+    condition: succeeded()
+    jobs:
+      - deployment: DeployProduction
+        displayName: 'Deploy to Production AKS'
+        pool:
+          vmImage: 'ubuntu-latest'
+        environment: 'otel-demo-production'  # Requires manual approval
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  displayName: 'Get AKS credentials (Prod)'
+                  inputs:
+                    azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      az aks get-credentials \
+                        --resource-group $(PROD_RESOURCE_GROUP) \
+                        --name $(PROD_AKS_CLUSTER) \
+                        --overwrite-existing
+                # Create backup before deployment
+                - script: |
+                    BACKUP_NAME="otel-demo-backup-$(date +%Y%m%d-%H%M%S)"
+                    echo "Creating backup: $BACKUP_NAME"
+                    helm get values otel-demo -n $(PROD_NAMESPACE) > "/tmp/$BACKUP_NAME-values.yaml"
+                    helm get manifest otel-demo -n $(PROD_NAMESPACE) > "/tmp/$BACKUP_NAME-manifest.yaml"
+                    echo "##vso[task.setvariable variable=BACKUP_NAME]$BACKUP_NAME"
+                  displayName: 'Backup current deployment'
+                  continueOnError: true
+                - task: HelmInstaller@1
+                  displayName: 'Install Helm 3'
+                  inputs:
+                    helmVersionToInstall: '3.12.0'
+                - script: |
+                    helm lint ./helm-charts/otel-demo -f ./helm-charts/otel-demo/values-prod.yaml
+                    helm template otel-demo ./helm-charts/otel-demo -f ./helm-charts/otel-demo/values-prod.yaml > /dev/null
+                  displayName: 'Helm lint & render (Prod)'
+                - task: HelmDeploy@0
+                  displayName: 'Helm upgrade (rolling update)'
+                  inputs:
+                    connectionType: 'Azure Resource Manager'
+                    azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                    azureResourceGroup: '$(PROD_RESOURCE_GROUP)'
+                    kubernetesCluster: '$(PROD_AKS_CLUSTER)'
+                    namespace: '$(PROD_NAMESPACE)'
+                    command: 'upgrade'
+                    chartType: 'FilePath'
+                    chartPath: './helm-charts/otel-demo'
+                    releaseName: 'otel-demo'
+                    valueFile: './helm-charts/otel-demo/values-prod.yaml'
+                    overrideValues: |
+                      image.tag=$(PROD_IMAGE_TAG)
+                      acr.loginServer=$(ACR_LOGIN_SERVER)
+                      rollout.strategy=rolling
+                      rollout.maxUnavailable=1
+                      rollout.maxSurge=1
+                    install: true
+                    waitForExecution: true
+                    arguments: '--timeout 15m'
+                - script: |
+                    echo "Monitoring production deployment..."
+                    for i in {1..10}; do
+                      echo "Check $i/10..."
+                      READY_PODS=$(kubectl get pods -n $(PROD_NAMESPACE) -l app.kubernetes.io/instance=otel-demo --field-selector=status.phase=Running --no-headers | wc -l)
+                      TOTAL_PODS=$(kubectl get pods -n $(PROD_NAMESPACE) -l app.kubernetes.io/instance=otel-demo --no-headers | wc -l)
+                      echo "Ready pods: $READY_PODS/$TOTAL_PODS"
+                      if [ "$READY_PODS" -eq "$TOTAL_PODS" ]; then
+                        echo "✅ All pods running successfully"
+                        exit 0
+                      fi
+                      sleep 30
+                    done
+                    echo "❌ Deployment validation failed"
+                    exit 1
+                  displayName: 'Validate production deployment'
+                - script: |
+                    FRONTEND_URL=$(kubectl get svc otel-demo-frontend \
+                      -n $(PROD_NAMESPACE) \
+                      -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+                    echo "Production URL: http://$FRONTEND_URL"
+                    echo "##vso[task.setvariable variable=PRODUCTION_URL]http://$FRONTEND_URL"
+                  displayName: 'Get production URL'
+
+  # ============================================
+  # ROLLBACK (Manual Trigger)
+  # ============================================
+  - stage: Rollback
+    displayName: 'Rollback Production'
+    dependsOn: DeployToProduction
+    condition: failed()
+    jobs:
+      - job: RollbackProduction
+        displayName: 'Rollback to Previous Version'
+        pool:
+          vmImage: 'ubuntu-latest'
+        
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Get AKS credentials'
+            inputs:
+              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az aks get-credentials \
+                  --resource-group $(PROD_RESOURCE_GROUP) \
+                  --name $(PROD_AKS_CLUSTER) \
+                  --overwrite-existing
+          
+          - script: |
+              echo "Rolling back to previous Helm release..."
+              helm rollback otel-demo -n otel-demo
+              
+              echo "Waiting for rollback to complete..."
+              kubectl rollout status deployment -n otel-demo --timeout=300s
+              
+              echo "✅ Rollback completed successfully"
+            displayName: 'Execute rollback'

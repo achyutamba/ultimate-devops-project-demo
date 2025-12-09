@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "otel-demo.fullname" . }}-emailservice
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: emailservice
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-emailservice
+spec:
+  replicas: {{ .Values.email.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-emailservice
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: emailservice
+        app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-emailservice
+      {{- if or .Values.global.podAnnotations .Values.email.podAnnotations }}
+      annotations:
+        {{- with .Values.global.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.email.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName | default "otel-demo" }}
+      {{- with .Values.global.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: emailservice
+          image: {{ .Values.email.image.repository }}:{{ .Values.email.image.tag }}
+          imagePullPolicy: {{ .Values.email.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: {{ .Values.email.service.port | default 8080 }}
+              name: service
+          {{- $svcSec := .Values.email.securityContext | default dict }}
+          {{- $globalSec := .Values.global.containerSecurityContext | default dict }}
+          {{- $sec := $svcSec | default $globalSec }}
+          {{- if $sec }}
+          securityContext:
+            {{- toYaml $sec | nindent 12 }}
+          {{- end }}
+          {{- $svcRes := .Values.email.resources | default dict }}
+          {{- $globalRes := .Values.global.resources | default dict }}
+          {{- $res := $svcRes | default $globalRes }}
+          {{- if $res }}
+          resources:
+            {{- toYaml $res | nindent 12 }}
+          {{- end }}
+          env:
+            {{- if .Values.email.env }}
+            {{- toYaml .Values.email.env | nindent 12 }}
+            {{- end }}

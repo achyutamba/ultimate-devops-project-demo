@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "otel-demo.fullname" . }}-flagd
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: flagd
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-flagd
+spec:
+  replicas: {{ .Values.flagd.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-flagd
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: flagd
+        app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-flagd
+      {{- if or .Values.global.podAnnotations .Values.flagd.podAnnotations }}
+      annotations:
+        {{- with .Values.global.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.flagd.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName | default "otel-demo" }}
+      {{- with .Values.global.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: config-rw
+          emptyDir: {}
+        - name: config-ro
+          configMap:
+            name: {{ include "otel-demo.fullname" . }}-flagd-config
+      initContainers:
+        - name: init-config
+          image: busybox
+          command: ["sh","-c","cp /config-ro/demo.flagd.json /config-rw/demo.flagd.json && cat /config-rw/demo.flagd.json"]
+          volumeMounts:
+            - name: config-ro
+              mountPath: /config-ro
+            - name: config-rw
+              mountPath: /config-rw
+      containers:
+        - name: flagd
+          image: {{ .Values.flagd.images.flagd.repository }}:{{ .Values.flagd.images.flagd.tag }}
+          imagePullPolicy: {{ .Values.flagd.images.flagd.pullPolicy | default "IfNotPresent" }}
+          command: ["/flagd-build","start","--uri","file:./etc/flagd/demo.flagd.json"]
+          ports:
+            - containerPort: {{ .Values.flagd.service.port | default 8013 }}
+              name: service
+          env:
+            {{- if .Values.flagd.env }}
+            {{- toYaml .Values.flagd.env | nindent 12 }}
+            {{- end }}
+          {{- $svcSec := .Values.flagd.securityContext | default dict }}
+          {{- $globalSec := .Values.global.containerSecurityContext | default dict }}
+          {{- $sec := $svcSec | default $globalSec }}
+          {{- if $sec }}
+          securityContext:
+            {{- toYaml $sec | nindent 12 }}
+          {{- end }}
+          {{- $svcRes := .Values.flagd.resources | default dict }}
+          {{- $globalRes := .Values.global.resources | default dict }}
+          {{- $res := $svcRes | default $globalRes }}
+          {{- if $res }}
+          resources:
+            {{- toYaml $res | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config-rw
+              mountPath: /etc/flagd
+        - name: flagdui
+          image: {{ .Values.flagd.images.flagdui.repository }}:{{ .Values.flagd.images.flagdui.tag }}
+          imagePullPolicy: {{ .Values.flagd.images.flagdui.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: 4000
+              name: service-ui
+          env:
+            {{- if .Values.flagd.uiEnv }}
+            {{- toYaml .Values.flagd.uiEnv | nindent 12 }}
+            {{- end }}
+          {{- $uiSec := .Values.flagd.uiSecurityContext | default dict }}
+          {{- $globalSec := .Values.global.containerSecurityContext | default dict }}
+          {{- $sec := $uiSec | default $globalSec }}
+          {{- if $sec }}
+          securityContext:
+            {{- toYaml $sec | nindent 12 }}
+          {{- end }}
+          {{- $uiRes := .Values.flagd.uiResources | default dict }}
+          {{- $globalRes := .Values.global.resources | default dict }}
+          {{- $res := $uiRes | default $globalRes }}
+          {{- if $res }}
+          resources:
+            {{- toYaml $res | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config-rw
+              mountPath: /app/data

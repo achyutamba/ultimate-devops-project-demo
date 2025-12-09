@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "otel-demo.fullname" . }}-accountingservice
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: accountingservice
+    app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-accountingservice
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+    app.kubernetes.io/part-of: otel-demo
+spec:
+  replicas: {{ .Values.accounting.replicaCount | default 1 }}
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-accountingservice
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: accountingservice
+        app.kubernetes.io/name: {{ include "otel-demo.fullname" . }}-accountingservice
+      {{- if or .Values.global.podAnnotations .Values.accounting.podAnnotations }}
+      annotations:
+        {{- with .Values.global.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.accounting.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName | default "otel-demo" }}
+      {{- with .Values.global.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: accountingservice
+          image: {{ .Values.accounting.image.repository }}:{{ .Values.accounting.image.tag }}
+          imagePullPolicy: {{ .Values.accounting.image.pullPolicy | default "IfNotPresent" }}
+          {{- $svcSec := .Values.accounting.securityContext | default dict }}
+          {{- $globalSec := .Values.global.containerSecurityContext | default dict }}
+          {{- $sec := $svcSec | default $globalSec }}
+          {{- if $sec }}
+          securityContext:
+            {{- toYaml $sec | nindent 12 }}
+          {{- end }}
+          {{- $svcRes := .Values.accounting.resources | default dict }}
+          {{- $globalRes := .Values.global.resources | default dict }}
+          {{- $res := $svcRes | default $globalRes }}
+          {{- if $res }}
+          resources:
+            {{- toYaml $res | nindent 12 }}
+          {{- end }}
+          env:
+            # Add environment variables here using .Values.accounting.env
+            {{- if .Values.accounting.env }}
+            {{- toYaml .Values.accounting.env | nindent 12 }}
+            {{- end }}
