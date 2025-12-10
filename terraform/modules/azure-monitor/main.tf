@@ -41,14 +41,13 @@ resource "azurerm_monitor_action_group" "main" {
     use_common_alert_schema = true
   }
 
-  dynamic "webhook_receiver" {
-    for_each = var.slack_webhook_url != "" ? { "slack" = var.slack_webhook_url } : {}
-    content {
-      name                    = "Slack Notifications"
-      service_uri             = webhook_receiver.value
-      use_common_alert_schema = true
-    }
-  }
+  # Webhook receiver for Slack (optional)
+  # Uncomment and configure if needed
+  # webhook_receiver {
+  #   name                    = "Slack Notifications"
+  #   service_uri             = var.slack_webhook_url
+  #   use_common_alert_schema = true
+  # }
 
   tags = var.tags
 }

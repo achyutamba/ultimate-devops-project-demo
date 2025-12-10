@@ -28,15 +28,15 @@ resource "azurerm_redis_cache" "main" {
     maxmemory_policy                = var.maxmemory_policy
   }
 
-  # Premium SKU features
-  dynamic "redis_configuration" {
-    for_each = var.sku_name == "Premium" ? [1] : []
-    content {
-      rdb_backup_enabled            = var.enable_persistence
-      rdb_backup_frequency          = var.backup_frequency
-      rdb_storage_connection_string = var.backup_storage_connection_string
-    }
-  }
+  # Premium SKU features - persistence disabled for Basic/Standard
+  # dynamic "redis_configuration" {
+  #   for_each = var.sku_name == "Premium" ? [1] : []
+  #   content {
+  #     rdb_backup_enabled            = var.enable_persistence
+  #     rdb_backup_frequency          = var.backup_frequency
+  #     rdb_storage_connection_string = var.backup_storage_connection_string
+  #   }
+  # }
 
   # Zone redundancy for Premium
   zones = var.sku_name == "Premium" && var.enable_zone_redundancy ? ["1", "2", "3"] : null
