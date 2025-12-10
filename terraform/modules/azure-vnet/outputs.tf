@@ -38,15 +38,16 @@ output "private_dns_zone_id" {
   value       = azurerm_private_dns_zone.postgres.id
 }
 
-output "appgw_public_ip_id" {
-  description = "ID of the Application Gateway public IP"
-  value       = azurerm_public_ip.appgw.id
-}
+# Application Gateway outputs - disabled (not used in dev)
+# output "appgw_public_ip_id" {
+#   description = "ID of the Application Gateway public IP"
+#   value       = azurerm_public_ip.appgw.id
+# }
 
-output "appgw_public_ip_address" {
-  description = "IP address of the Application Gateway"
-  value       = azurerm_public_ip.appgw.ip_address
-}
+# output "appgw_public_ip_address" {
+#   description = "IP address of the Application Gateway"
+#   value       = azurerm_public_ip.appgw.ip_address
+# }
 
 output "location" {
   description = "Azure region"
