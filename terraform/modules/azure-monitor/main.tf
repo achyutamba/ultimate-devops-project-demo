@@ -42,7 +42,7 @@ resource "azurerm_monitor_action_group" "main" {
   }
 
   dynamic "webhook_receiver" {
-    for_each = var.slack_webhook_url != "" ? ["slack"] : []
+    for_each = var.slack_webhook_url != "" ? toset(["slack"]) : toset([])
     content {
       name                    = "Slack Notifications"
       service_uri             = var.slack_webhook_url
