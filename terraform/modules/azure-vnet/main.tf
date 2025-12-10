@@ -32,6 +32,8 @@ resource "azurerm_subnet" "aks" {
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [var.aks_subnet_address_prefix]
+  
+  depends_on = [azurerm_virtual_network.main]
 }
 
 # Application Gateway Subnet
@@ -40,6 +42,8 @@ resource "azurerm_subnet" "appgw" {
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [var.appgw_subnet_address_prefix]
+  
+  depends_on = [azurerm_virtual_network.main]
 }
 
 # Database Subnet (with service endpoints)
@@ -63,6 +67,8 @@ resource "azurerm_subnet" "database" {
       ]
     }
   }
+  
+  depends_on = [azurerm_virtual_network.main]
 }
 
 # Private DNS Zone for PostgreSQL
