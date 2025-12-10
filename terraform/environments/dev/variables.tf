@@ -7,7 +7,7 @@ variable "project_name" {
 variable "location" {
   description = "Azure region"
   type        = string
-  default     = "eastus"
+  default     = "westus2"
 }
 
 variable "alert_email" {

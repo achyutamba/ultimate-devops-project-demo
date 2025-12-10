@@ -116,7 +116,7 @@ module "aks" {
   resource_group_name    = module.vnet.resource_group_name
   subnet_id              = module.vnet.aks_subnet_id
   vnet_id                = module.vnet.vnet_id
-  kubernetes_version     = "1.29"
+  kubernetes_version     = "1.32.9"
   
   # Node pools
   system_node_count      = 2
