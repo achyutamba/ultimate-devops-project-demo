@@ -61,6 +61,8 @@ resource "azurerm_postgresql_flexible_server_database" "accounting" {
   server_id = azurerm_postgresql_flexible_server.main.id
   charset   = "UTF8"
   collation = "en_US.utf8"
+  
+  depends_on = [azurerm_postgresql_flexible_server.main]
 }
 
 # PostgreSQL Configuration
@@ -68,6 +70,8 @@ resource "azurerm_postgresql_flexible_server_configuration" "max_connections" {
   name      = "max_connections"
   server_id = azurerm_postgresql_flexible_server.main.id
   value     = var.max_connections
+  
+  depends_on = [azurerm_postgresql_flexible_server.main]
 }
 
 resource "azurerm_postgresql_flexible_server_configuration" "shared_buffers" {
