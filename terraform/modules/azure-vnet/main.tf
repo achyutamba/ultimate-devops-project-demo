@@ -118,23 +118,24 @@ resource "azurerm_network_security_group" "aks" {
   }
 }
 
-# Associate NSG with AKS Subnet
-resource "azurerm_subnet_network_security_group_association" "aks" {
-  subnet_id                 = azurerm_subnet.aks.id
-  network_security_group_id = azurerm_network_security_group.aks.id
-  
-  depends_on = [
-    azurerm_subnet.aks,
-    azurerm_network_security_group.aks
-  ]
-}
+# Associate NSG with AKS Subnet - disabled to avoid race conditions
+# AKS will manage its own NSG rules
+# resource "azurerm_subnet_network_security_group_association" "aks" {
+#   subnet_id                 = azurerm_subnet.aks.id
+#   network_security_group_id = azurerm_network_security_group.aks.id
+#   
+#   depends_on = [
+#     azurerm_subnet.aks,
+#     azurerm_network_security_group.aks
+#   ]
+# }
 
-# Public IP for Application Gateway
-resource "azurerm_public_ip" "appgw" {
-  name                = "${var.project_name}-${var.environment}-appgw-pip"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  allocation_method   = "Static"
-  sku                 = "Standard"
-  tags                = var.tags
-}
+# Public IP for Application Gateway - not used in dev environment
+# resource "azurerm_public_ip" "appgw" {
+#   name                = "${var.project_name}-${var.environment}-appgw-pip"
+#   location            = azurerm_resource_group.main.location
+#   resource_group_name = azurerm_resource_group.main.name
+#   allocation_method   = "Static"
+#   sku                 = "Standard"
+#   tags                = var.tags
+# }
