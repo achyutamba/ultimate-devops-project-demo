@@ -27,9 +27,13 @@ resource "azurerm_postgresql_flexible_server" "main" {
   backup_retention_days        = var.backup_retention_days
   geo_redundant_backup_enabled = var.geo_redundant_backup_enabled
 
-  high_availability {
-    mode                      = var.high_availability_mode
-    standby_availability_zone = var.high_availability_mode != "Disabled" ? var.standby_zone : null
+  # High Availability only for ZoneRedundant or SameZone (not Disabled)
+  dynamic "high_availability" {
+    for_each = var.high_availability_mode != null && var.high_availability_mode != "Disabled" ? [1] : []
+    content {
+      mode                      = var.high_availability_mode
+      standby_availability_zone = var.standby_zone
+    }
   }
 
   maintenance_window {
