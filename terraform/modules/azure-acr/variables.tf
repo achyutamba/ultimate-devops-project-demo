@@ -90,7 +90,6 @@ variable "enable_quarantine_policy" {
 variable "log_analytics_workspace_id" {
   description = "ID of Log Analytics workspace for diagnostics"
   type        = string
-  default     = null
 }
 
 variable "tags" {

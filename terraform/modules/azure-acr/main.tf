@@ -58,7 +58,6 @@ resource "azurerm_container_registry" "main" {
 
 # Diagnostic settings for ACR
 resource "azurerm_monitor_diagnostic_setting" "acr" {
-  count                      = var.log_analytics_workspace_id != null ? 1 : 0
   name                       = "${var.project_name}-${var.environment}-acr-diagnostics"
   target_resource_id         = azurerm_container_registry.main.id
   log_analytics_workspace_id = var.log_analytics_workspace_id
