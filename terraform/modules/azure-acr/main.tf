@@ -28,28 +28,13 @@ resource "azurerm_container_registry" "main" {
   }
 
   # Network rules for Premium SKU
-  dynamic "network_rule_set" {
-    for_each = var.sku == "Premium" && var.enable_network_rules ? [1] : []
-    content {
-      default_action = var.default_network_action
-
-      dynamic "ip_rule" {
-        for_each = var.ip_rules
-        content {
-          action   = "Allow"
-          ip_range = ip_rule.value
-        }
-      }
-
-      dynamic "virtual_network" {
-        for_each = var.subnet_ids
-        content {
-          action    = "Allow"
-          subnet_id = virtual_network.value
-        }
-      }
-    }
-  }
+  # Network rules disabled for Standard SKU
+  # dynamic "network_rule_set" {
+  #   for_each = var.sku == "Premium" && var.enable_network_rules ? [1] : []
+  #   content {
+  #     default_action = var.default_network_action
+  #   }
+  # }
 
   # Enable content trust for image signing
   trust_policy {
@@ -60,11 +45,6 @@ resource "azurerm_container_registry" "main" {
   retention_policy {
     enabled = var.enable_retention_policy
     days    = var.retention_days
-  }
-
-  # Quarantine policy (scan before pull)
-  quarantine_policy {
-    enabled = var.enable_quarantine_policy
   }
 
   tags = var.tags

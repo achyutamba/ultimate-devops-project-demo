@@ -18,9 +18,6 @@ resource "azurerm_eventhub_namespace" "main" {
   sku                 = var.sku
   capacity            = var.capacity
   
-  # Enable Kafka for compatibility with existing services
-  kafka_enabled = true
-  
   # Auto-inflate for Standard/Premium tiers
   auto_inflate_enabled     = var.auto_inflate_enabled
   maximum_throughput_units = var.auto_inflate_enabled ? var.maximum_throughput_units : null
@@ -28,25 +25,11 @@ resource "azurerm_eventhub_namespace" "main" {
   # Zone redundancy for Premium
   zone_redundant = var.zone_redundant
 
-  # Network rules
-  network_rulesets {
-    default_action                 = var.default_network_action
-    trusted_service_access_enabled = true
-    
-    dynamic "virtual_network_rule" {
-      for_each = var.subnet_ids
-      content {
-        subnet_id = virtual_network_rule.value
-      }
-    }
-    
-    dynamic "ip_rule" {
-      for_each = var.ip_rules
-      content {
-        ip_mask = ip_rule.value
-      }
-    }
-  }
+  # Network rules disabled for Basic SKU
+  # network_rulesets {
+  #   default_action                 = "Allow"
+  #   trusted_service_access_enabled = true
+  # }
 
   tags = var.tags
 }

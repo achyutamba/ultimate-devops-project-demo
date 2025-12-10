@@ -42,7 +42,7 @@ resource "azurerm_monitor_action_group" "main" {
   }
 
   dynamic "webhook_receiver" {
-    for_each = var.slack_webhook_url != "" ? [1] : []
+    for_each = var.slack_webhook_url != "" ? ["slack"] : []
     content {
       name                    = "Slack Notifications"
       service_uri             = var.slack_webhook_url
@@ -139,7 +139,7 @@ resource "azurerm_monitor_metric_alert" "pod_failures" {
 
 # Application Insights Smart Detection Rule
 resource "azurerm_application_insights_smart_detection_rule" "failure_anomalies" {
-  name                    = "Failure Anomalies"
+  name                    = "Abnormal rise in exception volume"
   application_insights_id = azurerm_application_insights.main.id
   enabled                 = true
   send_emails_to_subscription_owners = false
