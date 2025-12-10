@@ -70,7 +70,7 @@ module "vnet" {
   tags = local.common_tags
 }
 
-# Monitoring Module (create first for AKS dependency)
+# Monitoring Module (create Log Analytics workspace first, alerts after AKS)
 module "monitor" {
   source = "../../modules/azure-monitor"
   
@@ -78,7 +78,7 @@ module "monitor" {
   environment         = local.environment
   location            = local.location
   resource_group_name = module.vnet.resource_group_name
-  aks_cluster_id      = module.aks.cluster_id
+  aks_cluster_id      = null  # Will be set after AKS is created
   alert_email         = var.alert_email
   retention_in_days   = 30
   

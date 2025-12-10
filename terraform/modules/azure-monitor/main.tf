@@ -55,6 +55,7 @@ resource "azurerm_monitor_action_group" "main" {
 
 # Metric Alert: High CPU Usage
 resource "azurerm_monitor_metric_alert" "high_cpu" {
+  count               = var.aks_cluster_id != null ? 1 : 0
   name                = "${var.project_name}-${var.environment}-high-cpu"
   resource_group_name = var.resource_group_name
   scopes              = [var.aks_cluster_id]
@@ -80,6 +81,7 @@ resource "azurerm_monitor_metric_alert" "high_cpu" {
 
 # Metric Alert: High Memory Usage
 resource "azurerm_monitor_metric_alert" "high_memory" {
+  count               = var.aks_cluster_id != null ? 1 : 0
   name                = "${var.project_name}-${var.environment}-high-memory"
   resource_group_name = var.resource_group_name
   scopes              = [var.aks_cluster_id]
@@ -105,6 +107,7 @@ resource "azurerm_monitor_metric_alert" "high_memory" {
 
 # Metric Alert: Pod Failures
 resource "azurerm_monitor_metric_alert" "pod_failures" {
+  count               = var.aks_cluster_id != null ? 1 : 0
   name                = "${var.project_name}-${var.environment}-pod-failures"
   resource_group_name = var.resource_group_name
   scopes              = [var.aks_cluster_id]

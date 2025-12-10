@@ -33,6 +33,7 @@ variable "retention_in_days" {
 variable "aks_cluster_id" {
   description = "ID of the AKS cluster to monitor"
   type        = string
+  default     = null
 }
 
 variable "alert_email" {
