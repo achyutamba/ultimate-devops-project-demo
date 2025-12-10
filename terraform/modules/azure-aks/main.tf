@@ -110,7 +110,6 @@ resource "azurerm_kubernetes_cluster_node_pool" "user" {
 
 # Role assignment for AKS to pull from ACR
 resource "azurerm_role_assignment" "aks_acr" {
-  count                = var.acr_id != "" ? 1 : 0
   principal_id         = azurerm_kubernetes_cluster.main.kubelet_identity[0].object_id
   role_definition_name = "AcrPull"
   scope                = var.acr_id
@@ -118,13 +117,13 @@ resource "azurerm_role_assignment" "aks_acr" {
 }
 
 # Role assignment for Application Gateway Ingress Controller
-resource "azurerm_role_assignment" "aks_network_contributor" {
-  count                = var.appgw_subnet_id != "" ? 1 : 0
-  principal_id         = azurerm_kubernetes_cluster.main.ingress_application_gateway[0].ingress_application_gateway_identity[0].object_id
-  role_definition_name = "Network Contributor"
-  scope                = var.vnet_id
-  skip_service_principal_aad_check = true
-}
+# Commented out - not used in dev environment (no Application Gateway)
+# resource "azurerm_role_assignment" "aks_network_contributor" {
+#   principal_id         = azurerm_kubernetes_cluster.main.ingress_application_gateway[0].ingress_application_gateway_identity[0].object_id
+#   role_definition_name = "Network Contributor"
+#   scope                = var.vnet_id
+#   skip_service_principal_aad_check = true
+# }
 
 # Application Gateway Ingress Controller (AGIC)
 resource "azurerm_kubernetes_cluster_extension" "agic" {

@@ -114,7 +114,6 @@ variable "log_analytics_workspace_id" {
 variable "acr_id" {
   description = "ID of Azure Container Registry"
   type        = string
-  default     = ""
 }
 
 variable "appgw_subnet_id" {
