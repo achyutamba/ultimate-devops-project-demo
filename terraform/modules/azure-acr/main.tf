@@ -36,15 +36,21 @@ resource "azurerm_container_registry" "main" {
   #   }
   # }
 
-  # Enable content trust for image signing
-  trust_policy {
-    enabled = var.enable_content_trust
+  # Enable content trust for image signing (Premium only)
+  dynamic "trust_policy" {
+    for_each = var.sku == "Premium" ? [1] : []
+    content {
+      enabled = var.enable_content_trust
+    }
   }
 
-  # Retention policy
-  retention_policy {
-    enabled = var.enable_retention_policy
-    days    = var.retention_days
+  # Retention policy (Premium only)
+  dynamic "retention_policy" {
+    for_each = var.sku == "Premium" && var.enable_retention_policy ? [1] : []
+    content {
+      enabled = true
+      days    = var.retention_days
+    }
   }
 
   tags = var.tags
