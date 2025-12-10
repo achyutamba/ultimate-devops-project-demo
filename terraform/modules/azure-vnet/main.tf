@@ -79,6 +79,11 @@ resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
   private_dns_zone_name = azurerm_private_dns_zone.postgres.name
   virtual_network_id    = azurerm_virtual_network.main.id
   tags                  = var.tags
+  
+  depends_on = [
+    azurerm_private_dns_zone.postgres,
+    azurerm_virtual_network.main
+  ]
 }
 
 # Network Security Group for AKS
@@ -117,6 +122,11 @@ resource "azurerm_network_security_group" "aks" {
 resource "azurerm_subnet_network_security_group_association" "aks" {
   subnet_id                 = azurerm_subnet.aks.id
   network_security_group_id = azurerm_network_security_group.aks.id
+  
+  depends_on = [
+    azurerm_subnet.aks,
+    azurerm_network_security_group.aks
+  ]
 }
 
 # Public IP for Application Gateway
