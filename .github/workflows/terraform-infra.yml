@@ -105,7 +105,6 @@ jobs:
   apply_dev:
     name: 'Apply (dev)'
     runs-on: ubuntu-latest
-    needs: fmt_validate_plan
     if: github.event_name == 'push'
     environment: dev
     concurrency:
