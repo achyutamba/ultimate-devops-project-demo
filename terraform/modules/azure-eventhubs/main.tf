@@ -43,7 +43,8 @@ resource "azurerm_eventhub" "orders" {
   message_retention   = var.message_retention
 }
 
-# Consumer group for Accounting service
+# Consumer groups - only for Standard/Premium tiers
+# Default consumer group ($Default) is automatically created and can be used
 resource "azurerm_eventhub_consumer_group" "accounting" {
   name                = "accounting-consumer"
   namespace_name      = azurerm_eventhub_namespace.main.name
@@ -51,7 +52,6 @@ resource "azurerm_eventhub_consumer_group" "accounting" {
   resource_group_name = var.resource_group_name
 }
 
-# Consumer group for Fraud Detection service
 resource "azurerm_eventhub_consumer_group" "fraud_detection" {
   name                = "fraud-detection-consumer"
   namespace_name      = azurerm_eventhub_namespace.main.name
