@@ -1,6 +1,6 @@
 # Development Environment - Complete Azure Infrastructure
 # OpenTelemetry Demo on AKS
-# Deployment: 2025-12-11 Fresh start after cleanup
+# Deployment: 2025-12-11 Retry after diagnostic setting cleanup
 
 terraform {
   required_version = ">= 1.6"
