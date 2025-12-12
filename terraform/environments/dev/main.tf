@@ -1,6 +1,6 @@
 # Development Environment - Complete Azure Infrastructure
 # OpenTelemetry Demo on AKS
-# Deployment: 2025-12-12 Clean deployment without Redis
+# Deployment: 2025-12-12 After Key Vault purge
 
 terraform {
   required_version = ">= 1.6"
