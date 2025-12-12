@@ -252,11 +252,12 @@ resource "azurerm_key_vault_secret" "postgres_connection_string" {
   key_vault_id = azurerm_key_vault.main.id
 }
 
-resource "azurerm_key_vault_secret" "redis_connection_string" {
-  name         = "redis-connection-string"
-  value        = module.redis.redis_connection_string
-  key_vault_id = azurerm_key_vault.main.id
-}
+# Redis disabled for dev
+# resource "azurerm_key_vault_secret" "redis_connection_string" {
+#   name         = "redis-connection-string"
+#   value        = module.redis.redis_connection_string
+#   key_vault_id = azurerm_key_vault.main.id
+# }
 
 resource "azurerm_key_vault_secret" "eventhubs_connection_string" {
   name         = "eventhubs-producer-connection-string"

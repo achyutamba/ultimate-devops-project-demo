@@ -42,16 +42,16 @@ output "postgres_database_name" {
   value       = module.postgres.database_name
 }
 
-# Redis
-output "redis_hostname" {
-  description = "Redis hostname"
-  value       = module.redis.redis_hostname
-}
+# Redis - Disabled for dev
+# output "redis_hostname" {
+#   description = "Redis hostname"
+#   value       = module.redis.redis_hostname
+# }
 
-output "redis_port" {
-  description = "Redis SSL port"
-  value       = module.redis.redis_ssl_port
-}
+# output "redis_port" {
+#   description = "Redis SSL port"
+#   value       = module.redis.redis_ssl_port
+# }
 
 # Event Hubs
 output "eventhubs_kafka_endpoint" {
