@@ -167,23 +167,24 @@ module "postgres" {
 }
 
 # Redis Cache
-module "redis" {
-  source = "../../modules/azure-redis"
-  
-  project_name        = local.project_name
-  environment         = local.environment
-  location            = local.location
-  resource_group_name = module.vnet.resource_group_name
-  
-  # Dev SKU (Basic)
-  sku_name            = "Basic"
-  family              = "C"
-  capacity            = 0
-  
-  tags = local.common_tags
-  
-  depends_on = [module.vnet]
-}
+# Redis Cache - Disabled for dev due to provisioning delays
+# module "redis" {
+#   source = "../../modules/azure-redis"
+#   
+#   project_name        = local.project_name
+#   environment         = local.environment
+#   location            = local.location
+#   resource_group_name = module.vnet.resource_group_name
+#   
+#   # Dev SKU (Basic)
+#   sku_name            = "Basic"
+#   family              = "C"
+#   capacity            = 0
+#   
+#   tags = local.common_tags
+#   
+#   depends_on = [module.vnet]
+# }
 
 # Event Hubs (Kafka-compatible)
 module "eventhubs" {
