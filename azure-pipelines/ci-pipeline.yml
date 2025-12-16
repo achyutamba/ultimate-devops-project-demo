@@ -1,250 +1,142 @@
-# Azure DevOps CI Pipeline - Build and Push to ACR
-# Builds Docker images for all microservices and pushes to Azure Container Registry
+# Simple CI Pipeline - Build Selected Services and Push to ACR
 
 trigger:
   branches:
     include:
       - main
-      - develop
   paths:
     include:
-      - src/*
+      - src/frontend/**
+      - src/accounting/**
+      - src/cart/**
+      - src/checkout/**
+      - src/product-catalog/**
 
 variables:
   - group: otel-demo-common
-  - name: DOCKER_BUILD_KIT
-    value: '1'
   - name: IMAGE_TAG
     value: '$(Build.BuildId)'
 
 stages:
-  - stage: Build
-    displayName: 'Build Docker Images'
+  - stage: BuildAndPush
+    displayName: 'Build and Push to ACR'
     jobs:
-      - job: BuildImages
-        displayName: 'Build Microservices'
+      # Frontend Service
+      - job: Frontend
+        displayName: 'Frontend Service'
         pool:
           vmImage: 'ubuntu-latest'
-        strategy:
-          matrix:
-            dev:
-              ENVIRONMENT: 'dev'
-              NAMESPACE: 'otel-demo-dev'
-            staging:
-              ENVIRONMENT: 'staging'
-              NAMESPACE: 'otel-demo-staging'
-            prod:
-              ENVIRONMENT: 'prod'
-              NAMESPACE: 'otel-demo-prod'
         steps:
           - checkout: self
-            fetchDepth: 1
-          - ${{ each service in parameters.services }}:
-            - task: Docker@2
-              displayName: 'Build ${{ service.SERVICE_NAME }} image'
-              inputs:
-                command: 'build'
-                dockerfile: '${{ service.DOCKERFILE_PATH }}'
-                tags: |
-                  $(IMAGE_TAG)
-                  latest
-                  $(Build.SourceBranchName)
-                arguments: '--build-arg BUILDKIT_INLINE_CACHE=1'
-            - task: Docker@2
-              displayName: 'Save ${{ service.SERVICE_NAME }} image'
-              inputs:
-                command: 'save'
-                arguments: '-o $(Build.ArtifactStagingDirectory)/${{ service.SERVICE_NAME }}-$(IMAGE_TAG).tar ${{ service.SERVICE_NAME }}:$(IMAGE_TAG)'
-            - task: PublishBuildArtifacts@1
-              displayName: 'Publish ${{ service.SERVICE_NAME }} artifacts'
-              inputs:
-                pathToPublish: '$(Build.ArtifactStagingDirectory)/${{ service.SERVICE_NAME }}-$(IMAGE_TAG).tar'
-                artifactName: '${{ service.SERVICE_NAME }}-image-$(ENVIRONMENT)'
-
-  - stage: SecurityScan
-    displayName: 'Security Scanning'
-    dependsOn: Build
-    jobs:
-      - job: TrivyScan
-        displayName: 'Trivy Security Scan'
-        pool:
-          vmImage: 'ubuntu-latest'
-        
-        strategy:
-          matrix:
-            accounting:
-              SERVICE_NAME: 'accounting'
-            ad:
-              SERVICE_NAME: 'ad'
-            cart:
-              SERVICE_NAME: 'cart'
-            checkout:
-              SERVICE_NAME: 'checkout'
-            currency:
-              SERVICE_NAME: 'currency'
-            email:
-              SERVICE_NAME: 'email'
-            frontend:
-              SERVICE_NAME: 'frontend'
-            frauddetection:
-              SERVICE_NAME: 'frauddetection'
-            loadgenerator:
-              SERVICE_NAME: 'loadgenerator'
-            payment:
-              SERVICE_NAME: 'payment'
-            productcatalog:
-              SERVICE_NAME: 'productcatalog'
-            recommendation:
-              SERVICE_NAME: 'recommendation'
-            shipping:
-              SERVICE_NAME: 'shipping'
-        
-        steps:
-          - task: DownloadBuildArtifacts@1
-            inputs:
-              buildType: 'current'
-              artifactName: '$(SERVICE_NAME)-image'
-              downloadPath: '$(System.ArtifactsDirectory)'
-          
-          - task: Docker@2
-            displayName: 'Load $(SERVICE_NAME) image'
-            inputs:
-              command: 'load'
-              arguments: '-i $(System.ArtifactsDirectory)/$(SERVICE_NAME)-image/$(SERVICE_NAME)-$(IMAGE_TAG).tar'
-          
-          - script: |
-              # Install Trivy
-              wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-              echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
-              sudo apt-get update
-              sudo apt-get install trivy -y
-              
-              # Scan image
-              trivy image --severity HIGH,CRITICAL --format sarif --output $(Build.ArtifactStagingDirectory)/trivy-$(SERVICE_NAME).sarif $(SERVICE_NAME):$(IMAGE_TAG)
-              trivy image --severity HIGH,CRITICAL $(SERVICE_NAME):$(IMAGE_TAG)
-            displayName: 'Run Trivy scan for $(SERVICE_NAME)'
-            continueOnError: true
-          
-          - task: PublishBuildArtifacts@1
-            displayName: 'Publish Trivy results'
-            inputs:
-              pathToPublish: '$(Build.ArtifactStagingDirectory)/trivy-$(SERVICE_NAME).sarif'
-              artifactName: 'trivy-reports'
-
-  - stage: PushToACR
-    displayName: 'Push to Azure Container Registry'
-    dependsOn: SecurityScan
-    condition: succeeded()
-    jobs:
-      - job: PushImages
-        displayName: 'Push to ACR'
-        pool:
-          vmImage: 'ubuntu-latest'
-        
-        strategy:
-          matrix:
-            accounting:
-              SERVICE_NAME: 'accounting'
-            ad:
-              SERVICE_NAME: 'ad'
-            cart:
-              SERVICE_NAME: 'cart'
-            checkout:
-              SERVICE_NAME: 'checkout'
-            currency:
-              SERVICE_NAME: 'currency'
-            email:
-              SERVICE_NAME: 'email'
-            frontend:
-              SERVICE_NAME: 'frontend'
-            frauddetection:
-              SERVICE_NAME: 'frauddetection'
-            loadgenerator:
-              SERVICE_NAME: 'loadgenerator'
-            payment:
-              SERVICE_NAME: 'payment'
-            productcatalog:
-              SERVICE_NAME: 'productcatalog'
-            recommendation:
-              SERVICE_NAME: 'recommendation'
-            shipping:
-              SERVICE_NAME: 'shipping'
-        
-        steps:
-          - task: DownloadBuildArtifacts@1
-            inputs:
-              buildType: 'current'
-              artifactName: '$(SERVICE_NAME)-image'
-              downloadPath: '$(System.ArtifactsDirectory)'
-          
-          - task: Docker@2
-            displayName: 'Load $(SERVICE_NAME) image'
-            inputs:
-              command: 'load'
-              arguments: '-i $(System.ArtifactsDirectory)/$(SERVICE_NAME)-image/$(SERVICE_NAME)-$(IMAGE_TAG).tar'
-          
           - task: AzureCLI@2
-            displayName: 'Login to ACR'
+            displayName: 'Build and Push Frontend'
             inputs:
               azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
                 az acr login --name $(ACR_NAME)
-          
-          - task: Docker@2
-            displayName: 'Tag image for ACR'
-            inputs:
-              command: 'tag'
-              arguments: '$(SERVICE_NAME):$(IMAGE_TAG) $(ACR_LOGIN_SERVER)/$(SERVICE_NAME):$(IMAGE_TAG)'
-          
-          - task: Docker@2
-            displayName: 'Tag image as latest'
-            inputs:
-              command: 'tag'
-              arguments: '$(SERVICE_NAME):$(IMAGE_TAG) $(ACR_LOGIN_SERVER)/$(SERVICE_NAME):latest'
-          
-          - task: Docker@2
-            displayName: 'Push $(SERVICE_NAME):$(IMAGE_TAG) to ACR'
-            inputs:
-              command: 'push'
-              arguments: '$(ACR_LOGIN_SERVER)/$(SERVICE_NAME):$(IMAGE_TAG)'
-          
-          - task: Docker@2
-            displayName: 'Push $(SERVICE_NAME):latest to ACR'
-            inputs:
-              command: 'push'
-              arguments: '$(ACR_LOGIN_SERVER)/$(SERVICE_NAME):latest'
+                docker build -t $(ACR_LOGIN_SERVER)/frontend:$(IMAGE_TAG) -t $(ACR_LOGIN_SERVER)/frontend:latest src/frontend/
+                docker push $(ACR_LOGIN_SERVER)/frontend:$(IMAGE_TAG)
+                docker push $(ACR_LOGIN_SERVER)/frontend:latest
+                echo "✅ Frontend image pushed successfully"
 
-  - stage: Notify
-    displayName: 'Notify Teams'
-    dependsOn: PushToACR
-    condition: always()
-    jobs:
-      - job: SendNotification
-        displayName: 'Send Build Notification'
+      # Accounting Service
+      - job: Accounting
+        displayName: 'Accounting Service'
         pool:
           vmImage: 'ubuntu-latest'
-        
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: 'Build and Push Accounting'
+            inputs:
+              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az acr login --name $(ACR_NAME)
+                docker build -t $(ACR_LOGIN_SERVER)/accounting:$(IMAGE_TAG) -t $(ACR_LOGIN_SERVER)/accounting:latest src/accounting/
+                docker push $(ACR_LOGIN_SERVER)/accounting:$(IMAGE_TAG)
+                docker push $(ACR_LOGIN_SERVER)/accounting:latest
+                echo "✅ Accounting image pushed successfully"
+
+      # Cart Service
+      - job: Cart
+        displayName: 'Cart Service'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: 'Build and Push Cart'
+            inputs:
+              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az acr login --name $(ACR_NAME)
+                docker build -t $(ACR_LOGIN_SERVER)/cart:$(IMAGE_TAG) -t $(ACR_LOGIN_SERVER)/cart:latest src/cart/src/
+                docker push $(ACR_LOGIN_SERVER)/cart:$(IMAGE_TAG)
+                docker push $(ACR_LOGIN_SERVER)/cart:latest
+                echo "✅ Cart image pushed successfully"
+
+      # Checkout Service
+      - job: Checkout
+        displayName: 'Checkout Service'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: 'Build and Push Checkout'
+            inputs:
+              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az acr login --name $(ACR_NAME)
+                docker build -t $(ACR_LOGIN_SERVER)/checkout:$(IMAGE_TAG) -t $(ACR_LOGIN_SERVER)/checkout:latest src/checkout/
+                docker push $(ACR_LOGIN_SERVER)/checkout:$(IMAGE_TAG)
+                docker push $(ACR_LOGIN_SERVER)/checkout:latest
+                echo "✅ Checkout image pushed successfully"
+
+      # Product Catalog Service
+      - job: ProductCatalog
+        displayName: 'Product Catalog Service'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: 'Build and Push Product Catalog'
+            inputs:
+              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az acr login --name $(ACR_NAME)
+                docker build -t $(ACR_LOGIN_SERVER)/productcatalog:$(IMAGE_TAG) -t $(ACR_LOGIN_SERVER)/productcatalog:latest src/product-catalog/
+                docker push $(ACR_LOGIN_SERVER)/productcatalog:$(IMAGE_TAG)
+                docker push $(ACR_LOGIN_SERVER)/productcatalog:latest
+                echo "✅ Product Catalog image pushed successfully"
+
+  - stage: Summary
+    displayName: 'Build Summary'
+    dependsOn: BuildAndPush
+    condition: always()
+    jobs:
+      - job: Results
+        displayName: 'Show Results'
+        pool:
+          vmImage: 'ubuntu-latest'
         steps:
           - script: |
-              BUILD_STATUS="✅ Success"
-              if [ "$(Agent.JobStatus)" != "Succeeded" ]; then
-                BUILD_STATUS="❌ Failed"
-              fi
-              curl -X POST "$(SLACK_WEBHOOK_URL)" \
-                -H 'Content-Type: application/json' \
-                -d '{
-                  "text": "'"$BUILD_STATUS"' - Build #$(Build.BuildId)",
-                  "attachments": [{
-                    "color": "'"$(Agent.JobStatus)" == "Succeeded" ? "good" : "danger"'",
-                    "fields": [
-                      {"title": "Branch", "value": "$(Build.SourceBranchName)", "short": true},
-                      {"title": "Commit", "value": "$(Build.SourceVersion)", "short": true},
-                      {"title": "Build", "value": "$(Build.BuildNumber)", "short": true},
-                      {"title": "Requested By", "value": "$(Build.RequestedFor)", "short": true}
-                    ]
-                  }]
-                }'
-            displayName: 'Send Slack notification'
-            condition: always()
+              echo "================================"
+              echo "CI Pipeline Completed"
+              echo "================================"
+              echo "Build ID: $(Build.BuildId)"
+              echo "Images tagged with: $(IMAGE_TAG) and latest"
+              echo "Pushed to: $(ACR_LOGIN_SERVER)"
+              echo "================================"
+            displayName: 'Pipeline Summary'
