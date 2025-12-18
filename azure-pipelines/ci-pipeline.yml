@@ -31,7 +31,7 @@ stages:
           - task: AzureCLI@2
             displayName: 'Build and Push Frontend'
             inputs:
-              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              azureSubscription: 'Azure-service1'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
@@ -51,7 +51,7 @@ stages:
           - task: AzureCLI@2
             displayName: 'Build and Push Accounting'
             inputs:
-              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              azureSubscription: 'Azure-service1'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
@@ -71,7 +71,7 @@ stages:
           - task: AzureCLI@2
             displayName: 'Build and Push Cart'
             inputs:
-              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              azureSubscription: 'Azure-service1'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
@@ -91,7 +91,7 @@ stages:
           - task: AzureCLI@2
             displayName: 'Build and Push Checkout'
             inputs:
-              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              azureSubscription: 'Azure-service1'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
@@ -111,7 +111,7 @@ stages:
           - task: AzureCLI@2
             displayName: 'Build and Push Product Catalog'
             inputs:
-              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              azureSubscription: 'Azure-service1'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
