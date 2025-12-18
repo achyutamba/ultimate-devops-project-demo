@@ -1,5 +1,6 @@
 # Deploy Azure Pipelines Agents to AKS
 # This pipeline deploys self-hosted agents to the AKS cluster
+# Agents run in the azure-pipelines namespace
 
 trigger: none  # Manual trigger only
 
