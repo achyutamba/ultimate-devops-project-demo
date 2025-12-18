@@ -1,0 +1,68 @@
+# Deploy Azure Pipelines Agents to AKS
+
+trigger: none  # Manual trigger only
+
+pr: none
+
+variables:
+  - group: otel-demo-dev
+
+stages:
+  - stage: DeployAgents
+    displayName: 'Deploy Azure Pipelines Agents'
+    jobs:
+      - job: DeployToAKS
+        displayName: 'Deploy Agents to AKS'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: 'Deploy Azure Pipelines Agents'
+            inputs:
+              azureSubscription: 'Azure-service1'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                echo "🔐 Connecting to AKS cluster..."
+                az aks get-credentials \
+                  --resource-group $(DEV_RESOURCE_GROUP) \
+                  --name $(DEV_AKS_CLUSTER) \
+                  --overwrite-existing
+                
+                echo "📦 Deploying Azure Pipelines agents..."
+                kubectl apply -f kubernetes/azure-agent/namespace.yaml
+                kubectl apply -f kubernetes/azure-agent/secret.yaml
+                kubectl apply -f kubernetes/azure-agent/deployment.yaml
+                
+                echo "⏳ Waiting for agents to be ready..."
+                kubectl wait --for=condition=available --timeout=120s \
+                  deployment/azdevops-agent -n azure-pipelines || true
+                
+                echo "✅ Checking agent status..."
+                kubectl get pods -n azure-pipelines
+                
+                echo ""
+                echo "================================"
+                echo "Azure Pipelines Agents Deployed!"
+                echo "================================"
+                echo "Namespace: azure-pipelines"
+                echo "Deployment: azdevops-agent"
+                echo "Agent Pool: AKS-Agent-Pool"
+                echo ""
+                echo "Next steps:"
+                echo "1. Go to Azure DevOps → Project Settings → Agent pools → AKS-Agent-Pool"
+                echo "2. Verify agents are online"
+                echo "3. Update CI pipeline to use pool: 'AKS-Agent-Pool'"
+                echo "================================"
+
+          - task: AzureCLI@2
+            displayName: 'Verify Agent Logs'
+            inputs:
+              azureSubscription: 'Azure-service1'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                echo "📋 Agent logs (last 20 lines):"
+                kubectl logs -n azure-pipelines deployment/azdevops-agent --tail=20 || echo "Logs not available yet"

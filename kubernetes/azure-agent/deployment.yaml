@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: azdevops-agent
+  namespace: azure-pipelines
+spec:
+  replicas: 2  # Run 2 agents for parallel builds
+  selector:
+    matchLabels:
+      app: azdevops-agent
+  template:
+    metadata:
+      labels:
+        app: azdevops-agent
+    spec:
+      containers:
+      - name: azdevops-agent
+        image: mcr.microsoft.com/azure-pipelines/vsts-agent:ubuntu-22.04
+        env:
+        - name: AZP_URL
+          valueFrom:
+            secretKeyRef:
+              name: azdevops-agent-secret
+              key: AZP_URL
+        - name: AZP_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: azdevops-agent-secret
+              key: AZP_TOKEN
+        - name: AZP_POOL
+          valueFrom:
+            secretKeyRef:
+              name: azdevops-agent-secret
+              key: AZP_POOL
+        - name: AZP_AGENT_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        volumeMounts:
+        - name: docker-socket
+          mountPath: /var/run/docker.sock
+      volumes:
+      - name: docker-socket
+        hostPath:
+          path: /var/run/docker.sock
+          type: Socket
