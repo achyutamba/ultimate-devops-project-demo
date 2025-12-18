@@ -1,6 +1,6 @@
 {
   "name": "frontend",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "scripts": {
     "dev": "npm run grpc:generate && NODE_OPTIONS='-r ./utils/telemetry/Instrumentation.js' next dev",
