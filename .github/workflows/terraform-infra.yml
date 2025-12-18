@@ -13,6 +13,14 @@ on:
       - '.github/workflows/terraform-infra.yml'
   workflow_dispatch:
     inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: apply
+        type: choice
+        options:
+          - apply
+          - destroy
       environment:
         description: 'Environment to apply (dev|staging|prod)'
         required: true
@@ -135,12 +143,12 @@ jobs:
         run: terraform apply -auto-approve -input=false
 
   apply_manual:
-    name: 'Apply (manual)'
+    name: 'Apply/Destroy (manual)'
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
     environment: ${{ inputs.environment }}
     concurrency:
-      group: terraform-apply-${{ inputs.environment }}
+      group: terraform-${{ inputs.action }}-${{ inputs.environment }}
       cancel-in-progress: false
     defaults:
       run:
@@ -165,4 +173,9 @@ jobs:
         run: terraform init -input=false
 
       - name: Terraform Apply
+        if: inputs.action == 'apply'
         run: terraform apply -auto-approve -input=false
+
+      - name: Terraform Destroy
+        if: inputs.action == 'destroy'
+        run: terraform destroy -auto-approve -input=false

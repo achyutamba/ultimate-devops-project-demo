@@ -25,15 +25,36 @@ stages:
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
+                echo "🔐 Fetching PAT token from Key Vault..."
+                PAT_TOKEN=$(az keyvault secret show \
+                  --vault-name otel-demo-dev-kv \
+                  --name azdevops-pat-token \
+                  --query value -o tsv)
+                
+                if [ -z "$PAT_TOKEN" ]; then
+                  echo "❌ ERROR: PAT token not found in Key Vault"
+                  echo "Please run: az keyvault secret set --vault-name otel-demo-dev-kv --name azdevops-pat-token --value 'YOUR_PAT_TOKEN'"
+                  exit 1
+                fi
+                
                 echo "🔐 Connecting to AKS cluster..."
                 az aks get-credentials \
                   --resource-group $(DEV_RESOURCE_GROUP) \
                   --name $(DEV_AKS_CLUSTER) \
                   --overwrite-existing
                 
-                echo "📦 Deploying Azure Pipelines agents..."
+                echo "📦 Creating namespace..."
                 kubectl apply -f kubernetes/azure-agent/namespace.yaml
-                kubectl apply -f kubernetes/azure-agent/secret.yaml
+                
+                echo "🔑 Creating secret with PAT from Key Vault..."
+                kubectl create secret generic azdevops-agent-secret \
+                  --from-literal=AZP_URL="https://dev.azure.com/achyutaakella/otel-demo" \
+                  --from-literal=AZP_TOKEN="$PAT_TOKEN" \
+                  --from-literal=AZP_POOL="AKS-Agent-Pool" \
+                  --namespace=azure-pipelines \
+                  --dry-run=client -o yaml | kubectl apply -f -
+                
+                echo "🚀 Deploying agent deployment..."
                 kubectl apply -f kubernetes/azure-agent/deployment.yaml
                 
                 echo "⏳ Waiting for agents to be ready..."

@@ -1,0 +1,540 @@
+# Azure DevOps CI/CD Pipeline - Frontend Only (Dev Environment)
+# Cost-optimized pipeline for deploying only frontend service to dev cluster
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    include:
+      - src/frontend/**
+      - azure-pipelines/frontend-dev-only.yml
+      - helm-charts/otel-demo/templates/frontend-*.yaml
+      - helm-charts/otel-demo/values-dev.yaml
+
+variables:
+  - group: otel-demo-dev
+  - name: SERVICE_NAME
+    value: 'frontend'
+  - name: ENVIRONMENT
+    value: 'dev'
+  - name: NAMESPACE
+    value: 'otel-demo-dev'
+  - name: IMAGE_TAG
+    value: '$(Build.BuildId)'
+  - name: ACR_NAME
+    value: '$(ACR_REGISTRY_NAME)'
+  - name: ACR_LOGIN_SERVER
+    value: '$(ACR_REGISTRY_NAME).azurecr.io'
+  - name: HELM_RELEASE_NAME
+    value: 'frontend-dev'
+
+stages:
+  # ============================================================================
+  # Stage 1: Build Frontend Service
+  # ============================================================================
+  - stage: Build
+    displayName: 'Build Frontend Service'
+    jobs:
+      - job: BuildFrontend
+        displayName: 'Build & Test Frontend'
+        pool:
+          vmImage: 'ubuntu-22.04'
+        
+        steps:
+          - checkout: self
+            fetchDepth: 1
+          
+          - task: NodeTool@0
+            displayName: 'Install Node.js'
+            inputs:
+              versionSpec: '20.x'
+          
+          - script: |
+              cd src/frontend
+              npm ci
+              npm run test
+            displayName: 'Install dependencies and run tests'
+            continueOnError: false
+          
+          - task: Docker@2
+            displayName: 'Build Frontend Docker Image'
+            inputs:
+              command: 'build'
+              repository: '$(SERVICE_NAME)'
+              dockerfile: 'src/frontend/Dockerfile'
+              tags: |
+                $(IMAGE_TAG)
+                latest
+                $(Build.SourceBranchName)
+              arguments: |
+                --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+                --build-arg VCS_REF=$(Build.SourceVersion)
+                --build-arg VERSION=$(Build.BuildNumber)
+          
+          - script: |
+              docker save $(SERVICE_NAME):$(IMAGE_TAG) -o $(Build.ArtifactStagingDirectory)/frontend-$(IMAGE_TAG).tar
+            displayName: 'Save Docker image as artifact'
+          
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Docker image artifact'
+            inputs:
+              pathToPublish: '$(Build.ArtifactStagingDirectory)/frontend-$(IMAGE_TAG).tar'
+              artifactName: 'frontend-image'
+
+  # ============================================================================
+  # Stage 2: Security Scanning
+  # ============================================================================
+  - stage: SecurityScan
+    displayName: 'Security Scanning'
+    dependsOn: Build
+    jobs:
+      - job: ScanFrontend
+        displayName: 'Scan Frontend Image'
+        pool:
+          vmImage: 'ubuntu-22.04'
+        
+        steps:
+          - task: DownloadBuildArtifacts@1
+            displayName: 'Download Frontend Image'
+            inputs:
+              buildType: 'current'
+              artifactName: 'frontend-image'
+              downloadPath: '$(System.ArtifactsDirectory)'
+          
+          - script: |
+              docker load -i $(System.ArtifactsDirectory)/frontend-image/frontend-$(IMAGE_TAG).tar
+            displayName: 'Load Docker image'
+          
+          # Trivy Security Scan
+          - script: |
+              # Install Trivy
+              wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+              echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+              sudo apt-get update
+              sudo apt-get install trivy -y
+              
+              echo "Running Trivy scan..."
+              trivy image --severity HIGH,CRITICAL \
+                --format json \
+                --output $(Build.ArtifactStagingDirectory)/trivy-results.json \
+                $(SERVICE_NAME):$(IMAGE_TAG)
+              
+              trivy image --severity HIGH,CRITICAL \
+                --exit-code 0 \
+                $(SERVICE_NAME):$(IMAGE_TAG)
+            displayName: 'Trivy Security Scan'
+            continueOnError: true
+          
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Trivy Results'
+            condition: always()
+            inputs:
+              pathToPublish: '$(Build.ArtifactStagingDirectory)/trivy-results.json'
+              artifactName: 'security-scan-results'
+
+  # ============================================================================
+  # Stage 3: Push to ACR
+  # ============================================================================
+  - stage: PushToACR
+    displayName: 'Push to Azure Container Registry'
+    dependsOn: SecurityScan
+    condition: succeeded()
+    jobs:
+      - job: PushImage
+        displayName: 'Push Frontend Image to ACR'
+        pool:
+          vmImage: 'ubuntu-22.04'
+        
+        steps:
+          - task: DownloadBuildArtifacts@1
+            displayName: 'Download Frontend Image'
+            inputs:
+              buildType: 'current'
+              artifactName: 'frontend-image'
+              downloadPath: '$(System.ArtifactsDirectory)'
+          
+          - script: |
+              docker load -i $(System.ArtifactsDirectory)/frontend-image/frontend-$(IMAGE_TAG).tar
+            displayName: 'Load Docker image'
+          
+          - task: AzureCLI@2
+            displayName: 'Login to ACR'
+            inputs:
+              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az acr login --name $(ACR_NAME)
+          
+          - script: |
+              # Tag for ACR
+              docker tag $(SERVICE_NAME):$(IMAGE_TAG) $(ACR_LOGIN_SERVER)/$(SERVICE_NAME):$(IMAGE_TAG)
+              docker tag $(SERVICE_NAME):$(IMAGE_TAG) $(ACR_LOGIN_SERVER)/$(SERVICE_NAME):latest
+              docker tag $(SERVICE_NAME):$(IMAGE_TAG) $(ACR_LOGIN_SERVER)/$(SERVICE_NAME):$(ENVIRONMENT)-latest
+              
+              # Push to ACR
+              docker push $(ACR_LOGIN_SERVER)/$(SERVICE_NAME):$(IMAGE_TAG)
+              docker push $(ACR_LOGIN_SERVER)/$(SERVICE_NAME):latest
+              docker push $(ACR_LOGIN_SERVER)/$(SERVICE_NAME):$(ENVIRONMENT)-latest
+              
+              echo "✓ Pushed images to ACR:"
+              echo "  - $(ACR_LOGIN_SERVER)/$(SERVICE_NAME):$(IMAGE_TAG)"
+              echo "  - $(ACR_LOGIN_SERVER)/$(SERVICE_NAME):latest"
+              echo "  - $(ACR_LOGIN_SERVER)/$(SERVICE_NAME):$(ENVIRONMENT)-latest"
+            displayName: 'Tag and Push to ACR'
+
+  # ============================================================================
+  # Stage 4: Deploy to Dev AKS with Rollback Support
+  # ============================================================================
+  - stage: DeployDev
+    displayName: 'Deploy to Dev AKS'
+    dependsOn: PushToACR
+    condition: succeeded()
+    jobs:
+      - deployment: DeployFrontend
+        displayName: 'Deploy Frontend to Dev'
+        pool:
+          vmImage: 'ubuntu-22.04'
+        environment: 'otel-demo-dev'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                
+                - task: AzureCLI@2
+                  displayName: 'Get AKS Credentials'
+                  inputs:
+                    azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      az aks get-credentials \
+                        --resource-group $(AKS_RESOURCE_GROUP) \
+                        --name $(AKS_CLUSTER_NAME) \
+                        --overwrite-existing
+                
+                # Create namespace if not exists
+                - script: |
+                    kubectl create namespace $(NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -
+                  displayName: 'Create Namespace'
+                
+                # Store current deployment for rollback
+                - script: |
+                    echo "Storing current deployment state for rollback..."
+                    
+                    # Check if deployment exists
+                    if kubectl get deployment frontend -n $(NAMESPACE) &>/dev/null; then
+                      CURRENT_IMAGE=$(kubectl get deployment frontend -n $(NAMESPACE) -o jsonpath='{.spec.template.spec.containers[0].image}')
+                      CURRENT_REPLICAS=$(kubectl get deployment frontend -n $(NAMESPACE) -o jsonpath='{.spec.replicas}')
+                      
+                      echo "Current deployment found:"
+                      echo "  Image: $CURRENT_IMAGE"
+                      echo "  Replicas: $CURRENT_REPLICAS"
+                      
+                      # Save to pipeline variables
+                      echo "##vso[task.setvariable variable=PREVIOUS_IMAGE]$CURRENT_IMAGE"
+                      echo "##vso[task.setvariable variable=PREVIOUS_REPLICAS]$CURRENT_REPLICAS"
+                      echo "##vso[task.setvariable variable=DEPLOYMENT_EXISTS]true"
+                      
+                      # Create backup manifest
+                      kubectl get deployment frontend -n $(NAMESPACE) -o yaml > $(Build.ArtifactStagingDirectory)/frontend-backup.yaml
+                    else
+                      echo "No existing deployment found. This is a fresh deployment."
+                      echo "##vso[task.setvariable variable=DEPLOYMENT_EXISTS]false"
+                    fi
+                  displayName: 'Backup Current Deployment'
+                  continueOnError: true
+                
+                - task: PublishBuildArtifacts@1
+                  displayName: 'Publish Backup Manifest'
+                  condition: eq(variables['DEPLOYMENT_EXISTS'], 'true')
+                  inputs:
+                    pathToPublish: '$(Build.ArtifactStagingDirectory)/frontend-backup.yaml'
+                    artifactName: 'deployment-backup'
+                
+                # Deploy with Helm (only frontend chart)
+                - task: HelmDeploy@0
+                  displayName: 'Helm Deploy Frontend'
+                  inputs:
+                    connectionType: 'Azure Resource Manager'
+                    azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                    azureResourceGroup: '$(AKS_RESOURCE_GROUP)'
+                    kubernetesCluster: '$(AKS_CLUSTER_NAME)'
+                    namespace: '$(NAMESPACE)'
+                    command: 'upgrade'
+                    chartType: 'FilePath'
+                    chartPath: './helm-charts/otel-demo'
+                    releaseName: '$(HELM_RELEASE_NAME)'
+                    valueFile: './helm-charts/otel-demo/values-dev.yaml'
+                    overrideValues: |
+                      frontend.enabled=true
+                      frontend.image.repository=$(ACR_LOGIN_SERVER)/frontend
+                      frontend.image.tag=$(IMAGE_TAG)
+                      frontend.replicas=1
+                      cart.enabled=false
+                      checkout.enabled=false
+                      payment.enabled=false
+                      productcatalog.enabled=false
+                      recommendation.enabled=false
+                      ad.enabled=false
+                      currency.enabled=false
+                      email.enabled=false
+                      shipping.enabled=false
+                      accounting.enabled=false
+                      frauddetection.enabled=false
+                      loadgenerator.enabled=false
+                    install: true
+                    waitForExecution: true
+                    arguments: '--timeout 5m --create-namespace'
+                
+                # Wait for deployment to be ready
+                - script: |
+                    echo "Waiting for frontend deployment to be ready..."
+                    kubectl rollout status deployment/frontend -n $(NAMESPACE) --timeout=5m
+                    
+                    if [ $? -eq 0 ]; then
+                      echo "✓ Deployment successful!"
+                      echo "##vso[task.setvariable variable=DEPLOYMENT_STATUS]success"
+                    else
+                      echo "✗ Deployment failed or timed out"
+                      echo "##vso[task.setvariable variable=DEPLOYMENT_STATUS]failed"
+                      exit 1
+                    fi
+                  displayName: 'Wait for Deployment Ready'
+                  continueOnError: true
+                
+                # Health check
+                - script: |
+                    echo "Running health checks..."
+                    
+                    # Wait for pods to be running
+                    sleep 10
+                    
+                    # Check pod status
+                    POD_STATUS=$(kubectl get pods -n $(NAMESPACE) -l app=frontend -o jsonpath='{.items[0].status.phase}')
+                    echo "Pod status: $POD_STATUS"
+                    
+                    if [ "$POD_STATUS" != "Running" ]; then
+                      echo "✗ Pod is not running"
+                      echo "##vso[task.setvariable variable=HEALTH_CHECK]failed"
+                      kubectl describe pod -n $(NAMESPACE) -l app=frontend
+                      exit 1
+                    fi
+                    
+                    # Check if pod is ready
+                    READY_STATUS=$(kubectl get pods -n $(NAMESPACE) -l app=frontend -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}')
+                    echo "Ready status: $READY_STATUS"
+                    
+                    if [ "$READY_STATUS" != "True" ]; then
+                      echo "✗ Pod is not ready"
+                      echo "##vso[task.setvariable variable=HEALTH_CHECK]failed"
+                      kubectl logs -n $(NAMESPACE) -l app=frontend --tail=50
+                      exit 1
+                    fi
+                    
+                    # Test service endpoint
+                    SERVICE_IP=$(kubectl get svc frontend -n $(NAMESPACE) -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+                    if [ -z "$SERVICE_IP" ]; then
+                      SERVICE_IP=$(kubectl get svc frontend -n $(NAMESPACE) -o jsonpath='{.spec.clusterIP}')
+                    fi
+                    
+                    echo "Service IP: $SERVICE_IP"
+                    
+                    # Port-forward and test
+                    kubectl port-forward -n $(NAMESPACE) svc/frontend 8080:8080 &
+                    PF_PID=$!
+                    sleep 5
+                    
+                    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 || echo "000")
+                    kill $PF_PID 2>/dev/null || true
+                    
+                    echo "HTTP Status: $HTTP_STATUS"
+                    
+                    if [ "$HTTP_STATUS" == "200" ] || [ "$HTTP_STATUS" == "302" ]; then
+                      echo "✓ Health check passed!"
+                      echo "##vso[task.setvariable variable=HEALTH_CHECK]success"
+                    else
+                      echo "✗ Health check failed (HTTP $HTTP_STATUS)"
+                      echo "##vso[task.setvariable variable=HEALTH_CHECK]failed"
+                      exit 1
+                    fi
+                  displayName: 'Health Check'
+                  continueOnError: true
+                
+                # Automatic Rollback if deployment or health check failed
+                - script: |
+                    echo "Checking if rollback is needed..."
+                    
+                    if [ "$(DEPLOYMENT_STATUS)" == "failed" ] || [ "$(HEALTH_CHECK)" == "failed" ]; then
+                      echo "⚠️ Deployment or health check failed. Initiating rollback..."
+                      
+                      if [ "$(DEPLOYMENT_EXISTS)" == "true" ]; then
+                        echo "Rolling back to previous image: $(PREVIOUS_IMAGE)"
+                        
+                        kubectl set image deployment/frontend \
+                          frontend=$(PREVIOUS_IMAGE) \
+                          -n $(NAMESPACE)
+                        
+                        kubectl rollout status deployment/frontend -n $(NAMESPACE) --timeout=3m
+                        
+                        echo "✓ Rollback completed successfully"
+                        echo "##vso[task.complete result=Failed;]Deployment failed. Rolled back to previous version."
+                      else
+                        echo "No previous deployment to rollback to. Cleaning up..."
+                        kubectl delete deployment frontend -n $(NAMESPACE) --ignore-not-found
+                        kubectl delete service frontend -n $(NAMESPACE) --ignore-not-found
+                        echo "##vso[task.complete result=Failed;]First deployment failed. Resources cleaned up."
+                      fi
+                      
+                      exit 1
+                    else
+                      echo "✓ Deployment and health checks successful. No rollback needed."
+                    fi
+                  displayName: 'Auto Rollback on Failure'
+                  condition: or(eq(variables['DEPLOYMENT_STATUS'], 'failed'), eq(variables['HEALTH_CHECK'], 'failed'))
+                
+                # Display deployment info
+                - script: |
+                    echo "=========================================="
+                    echo "Frontend Deployment Summary"
+                    echo "=========================================="
+                    echo "Environment: $(ENVIRONMENT)"
+                    echo "Namespace: $(NAMESPACE)"
+                    echo "Image: $(ACR_LOGIN_SERVER)/$(SERVICE_NAME):$(IMAGE_TAG)"
+                    echo "Build ID: $(Build.BuildId)"
+                    echo ""
+                    echo "Deployment Status:"
+                    kubectl get deployment frontend -n $(NAMESPACE)
+                    echo ""
+                    echo "Pod Status:"
+                    kubectl get pods -n $(NAMESPACE) -l app=frontend
+                    echo ""
+                    echo "Service Status:"
+                    kubectl get svc frontend -n $(NAMESPACE)
+                    echo ""
+                    echo "Access URL:"
+                    echo "kubectl port-forward -n $(NAMESPACE) svc/frontend 8080:8080"
+                    echo "Then visit: http://localhost:8080"
+                  displayName: 'Display Deployment Info'
+                  condition: succeeded()
+
+  # ============================================================================
+  # Stage 5: Manual Rollback (if needed)
+  # ============================================================================
+  - stage: ManualRollback
+    displayName: 'Manual Rollback (Optional)'
+    dependsOn: DeployDev
+    condition: failed()
+    jobs:
+      - job: RollbackConfirmation
+        displayName: 'Manual Rollback Option'
+        pool: server
+        timeoutInMinutes: 60
+        steps:
+          - task: ManualValidation@0
+            displayName: 'Approve Manual Rollback'
+            inputs:
+              notifyUsers: '$(Build.RequestedForEmail)'
+              instructions: |
+                The deployment has failed. 
+                
+                An automatic rollback may have been attempted.
+                
+                To manually rollback, approve this step and the pipeline will:
+                1. Restore the previous deployment from backup
+                2. Verify the rollback was successful
+                
+                Click "Resume" to proceed with manual rollback, or "Reject" to investigate further.
+      
+      - job: ExecuteManualRollback
+        displayName: 'Execute Manual Rollback'
+        dependsOn: RollbackConfirmation
+        pool:
+          vmImage: 'ubuntu-22.04'
+        steps:
+          - task: DownloadBuildArtifacts@1
+            displayName: 'Download Backup Manifest'
+            inputs:
+              buildType: 'current'
+              artifactName: 'deployment-backup'
+              downloadPath: '$(System.ArtifactsDirectory)'
+          
+          - task: AzureCLI@2
+            displayName: 'Get AKS Credentials'
+            inputs:
+              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az aks get-credentials \
+                  --resource-group $(AKS_RESOURCE_GROUP) \
+                  --name $(AKS_CLUSTER_NAME) \
+                  --overwrite-existing
+          
+          - script: |
+              echo "Executing manual rollback..."
+              
+              if [ -f "$(System.ArtifactsDirectory)/deployment-backup/frontend-backup.yaml" ]; then
+                kubectl apply -f $(System.ArtifactsDirectory)/deployment-backup/frontend-backup.yaml
+                kubectl rollout status deployment/frontend -n $(NAMESPACE) --timeout=5m
+                echo "✓ Manual rollback completed"
+              else
+                echo "✗ Backup manifest not found"
+                exit 1
+              fi
+            displayName: 'Apply Backup Manifest'
+
+  # ============================================================================
+  # Stage 6: Notification
+  # ============================================================================
+  - stage: Notify
+    displayName: 'Send Notifications'
+    dependsOn: DeployDev
+    condition: always()
+    jobs:
+      - job: SendNotification
+        displayName: 'Send Deployment Notification'
+        pool:
+          vmImage: 'ubuntu-22.04'
+        
+        steps:
+          - script: |
+              if [ "$(Agent.JobStatus)" == "Succeeded" ]; then
+                BUILD_STATUS="✅ SUCCESS"
+                COLOR="good"
+                MESSAGE="Frontend successfully deployed to Dev environment"
+              else
+                BUILD_STATUS="❌ FAILED"
+                COLOR="danger"
+                MESSAGE="Frontend deployment to Dev environment failed. Check logs for details."
+              fi
+              
+              # Send to Slack (if webhook configured)
+              if [ -n "$(SLACK_WEBHOOK_URL)" ]; then
+                curl -X POST "$(SLACK_WEBHOOK_URL)" \
+                  -H 'Content-Type: application/json' \
+                  -d "{
+                    \"text\": \"$BUILD_STATUS - Frontend Dev Deployment\",
+                    \"attachments\": [{
+                      \"color\": \"$COLOR\",
+                      \"fields\": [
+                        {\"title\": \"Environment\", \"value\": \"$(ENVIRONMENT)\", \"short\": true},
+                        {\"title\": \"Service\", \"value\": \"$(SERVICE_NAME)\", \"short\": true},
+                        {\"title\": \"Image Tag\", \"value\": \"$(IMAGE_TAG)\", \"short\": true},
+                        {\"title\": \"Build\", \"value\": \"$(Build.BuildNumber)\", \"short\": true},
+                        {\"title\": \"Branch\", \"value\": \"$(Build.SourceBranchName)\", \"short\": true},
+                        {\"title\": \"Commit\", \"value\": \"$(Build.SourceVersion)\", \"short\": true},
+                        {\"title\": \"Deployed By\", \"value\": \"$(Build.RequestedFor)\", \"short\": true},
+                        {\"title\": \"Status\", \"value\": \"$MESSAGE\", \"short\": false}
+                      ]
+                    }]
+                  }"
+              fi
+              
+              echo "$BUILD_STATUS"
+              echo "$MESSAGE"
+            displayName: 'Send Notification'
+            condition: always()

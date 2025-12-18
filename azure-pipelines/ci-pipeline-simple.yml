@@ -1,0 +1,142 @@
+# Simple CI Pipeline - Build Selected Services and Push to ACR
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - src/frontend/**
+      - src/accounting/**
+      - src/cart/**
+      - src/checkout/**
+      - src/product-catalog/**
+
+variables:
+  - group: otel-demo-common
+  - name: IMAGE_TAG
+    value: '$(Build.BuildId)'
+
+stages:
+  - stage: BuildAndPush
+    displayName: 'Build and Push to ACR'
+    jobs:
+      # Frontend Service
+      - job: Frontend
+        displayName: 'Frontend Service'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: 'Build and Push Frontend'
+            inputs:
+              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az acr login --name $(ACR_NAME)
+                docker build -t $(ACR_LOGIN_SERVER)/frontend:$(IMAGE_TAG) -t $(ACR_LOGIN_SERVER)/frontend:latest src/frontend/
+                docker push $(ACR_LOGIN_SERVER)/frontend:$(IMAGE_TAG)
+                docker push $(ACR_LOGIN_SERVER)/frontend:latest
+                echo "✅ Frontend image pushed successfully"
+
+      # Accounting Service
+      - job: Accounting
+        displayName: 'Accounting Service'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: 'Build and Push Accounting'
+            inputs:
+              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az acr login --name $(ACR_NAME)
+                docker build -t $(ACR_LOGIN_SERVER)/accounting:$(IMAGE_TAG) -t $(ACR_LOGIN_SERVER)/accounting:latest src/accounting/
+                docker push $(ACR_LOGIN_SERVER)/accounting:$(IMAGE_TAG)
+                docker push $(ACR_LOGIN_SERVER)/accounting:latest
+                echo "✅ Accounting image pushed successfully"
+
+      # Cart Service
+      - job: Cart
+        displayName: 'Cart Service'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: 'Build and Push Cart'
+            inputs:
+              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az acr login --name $(ACR_NAME)
+                docker build -t $(ACR_LOGIN_SERVER)/cart:$(IMAGE_TAG) -t $(ACR_LOGIN_SERVER)/cart:latest src/cart/src/
+                docker push $(ACR_LOGIN_SERVER)/cart:$(IMAGE_TAG)
+                docker push $(ACR_LOGIN_SERVER)/cart:latest
+                echo "✅ Cart image pushed successfully"
+
+      # Checkout Service
+      - job: Checkout
+        displayName: 'Checkout Service'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: 'Build and Push Checkout'
+            inputs:
+              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az acr login --name $(ACR_NAME)
+                docker build -t $(ACR_LOGIN_SERVER)/checkout:$(IMAGE_TAG) -t $(ACR_LOGIN_SERVER)/checkout:latest src/checkout/
+                docker push $(ACR_LOGIN_SERVER)/checkout:$(IMAGE_TAG)
+                docker push $(ACR_LOGIN_SERVER)/checkout:latest
+                echo "✅ Checkout image pushed successfully"
+
+      # Product Catalog Service
+      - job: ProductCatalog
+        displayName: 'Product Catalog Service'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: 'Build and Push Product Catalog'
+            inputs:
+              azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az acr login --name $(ACR_NAME)
+                docker build -t $(ACR_LOGIN_SERVER)/productcatalog:$(IMAGE_TAG) -t $(ACR_LOGIN_SERVER)/productcatalog:latest src/product-catalog/
+                docker push $(ACR_LOGIN_SERVER)/productcatalog:$(IMAGE_TAG)
+                docker push $(ACR_LOGIN_SERVER)/productcatalog:latest
+                echo "✅ Product Catalog image pushed successfully"
+
+  - stage: Summary
+    displayName: 'Build Summary'
+    dependsOn: BuildAndPush
+    condition: always()
+    jobs:
+      - job: Results
+        displayName: 'Show Results'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              echo "================================"
+              echo "CI Pipeline Completed"
+              echo "================================"
+              echo "Build ID: $(Build.BuildId)"
+              echo "Images tagged with: $(IMAGE_TAG) and latest"
+              echo "Pushed to: $(ACR_LOGIN_SERVER)"
+              echo "================================"
+            displayName: 'Pipeline Summary'
